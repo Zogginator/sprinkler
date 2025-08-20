@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<div
+  id="zones"
+  hx-get="{{ url_for('partial_zones') }}"
+  hx-trigger="load, every {{ poll_sec }}s"
+  hx-swap="outerHTML">
+  Betöltés...
+</div>
+{% endblock %}

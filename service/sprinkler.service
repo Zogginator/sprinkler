@@ -1,0 +1,21 @@
+# /etc/systemd/system/sprinkler.service
+[Unit]
+Description=Sprinkler Flask backend (Pi1)
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/sprinkler
+Environment=ZONES_CONF=/home/pi/sprinkler/zones.yaml
+
+# Várakozás, amíg a Mosquitto broker (Dockerben) elérhető a 1883-as porton
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do nc -z 127.0.0.1 1883 && exit 0; echo "MQTT not up yet"; sleep 2; done>
+ExecStart=/usr/bin/python3 /home/pi/sprinkler/app.py
+
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

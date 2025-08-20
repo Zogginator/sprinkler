@@ -1,0 +1,30 @@
+mqtt:
+  host: 127.0.0.1
+  port: 1883
+  username: "homeassistant"
+  password: "nadap"
+  qos: 1
+
+  # Sprinkler channel-topic séma
+  base_topic: "sprinkler"
+  topics:
+    set:    "sprinkler/{channel}/set"   # publish ide: "1" vagy "0"
+    state:  "sprinkler/+/get"           # feliratkozás: "0" vagy "1" (wildcard)
+
+device:
+  name: "OpenBK7231N_08D6ACEA"
+
+zones:
+  - id: 1
+    name: "Előkert"
+    channel: 31
+  - id: 2
+    name: "Oldalkert"
+    channel: 32
+  - id: 3
+    name: "Hátsókert"
+    channel: 33
+
+failsafe:
+  max_seconds: 600
+  poll_seconds: 3

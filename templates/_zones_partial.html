@@ -1,0 +1,18 @@
+<div id="zones">
+  {% for z in zones %}
+  {% set st = G.zones[z.id] %}
+  <div class="zone">
+    <div class="title">{{ z.name }} (CH {{ z.channel }})</div>
+    <div class="state">Állapot: <strong>{{ 'BE' if st.on else 'KI' }}</strong>
+      {% if st.remaining %}<span class="rem">({{ st.remaining }} mp)</span>{% endif %}
+    </div>
+    <form method="post" action="/zones/{{ z.id }}/on" class="inline">
+      <input type="number" name="seconds" min="5" value="{{ st.remaining or 60 }}">
+      <button type="submit">BE (időzítve)</button>
+    </form>
+    <form method="post" action="/zones/{{ z.id }}/off" class="inline">
+      <button type="submit">KI</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>

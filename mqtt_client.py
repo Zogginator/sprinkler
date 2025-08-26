@@ -1,23 +1,38 @@
 import json, threading, time, re
 import paho.mqtt.client as mqtt
 
+
 class OBKMqtt:
     """
     Sprinkler channel-topicos séma:
       publish:  sprinkler/{channel}/set   payload: "1" vagy "0"
       state:    sprinkler/{channel}/get   payload: "1" vagy "0" (feliratkozás: sprinkler/+/get)
     """
-    def __init__(self, host, port, username, password, qos, set_tmpl, state_sub, on_state_cb, on_log=None):
+
+    def __init__(
+        self,
+        host,
+        port,
+        username,
+        password,
+        qos,
+        set_tmpl,
+        state_sub,
+        on_state_cb,
+        on_log=None,
+    ):
         self.host, self.port = host, port
         self.username, self.password = username, password
         self.qos = qos
-        self.set_tmpl = set_tmpl          # pl.: sprinkler/{channel}/set
-        self.state_sub = state_sub        # pl.: sprinkler/+/get
-        self.on_state_cb = on_state_cb    # callback(channel:int, value:int)
+        self.set_tmpl = set_tmpl  # pl.: sprinkler/{channel}/set
+        self.state_sub = state_sub  # pl.: sprinkler/+/get
+        self.on_state_cb = on_state_cb  # callback(channel:int, value:int)
         self.on_log = on_log or (lambda *a, **k: None)
 
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
-                                  client_id=f"sprinkler-backend-{int(time.time())}")
+        self.client = mqtt.Client(
+            mqtt.CallbackAPIVersion.VERSION2,
+            client_id=f"sprinkler-backend-{int(time.time())}",
+        )
         if username:
             self.client.username_pw_set(username, password)
 
@@ -42,10 +57,10 @@ class OBKMqtt:
         try:
             payload = msg.payload.decode("utf-8").strip()
             val = 1 if payload in ("1", "ON", "on", "true", "True") else 0
-            m = re.match(r'^sprinkler/(\d+)/get$', msg.topic)
+            m = re.match(r"^sprinkler/(\d+)/get$", msg.topic)
             if m:
                 ch = int(m.group(1))
-                self.on_state_cb(ch, val)
+                # self.on_state_cb(ch, val)
         except Exception as e:
             self.on_log(f"state parse error: {e}")
 

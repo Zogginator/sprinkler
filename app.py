@@ -1,13 +1,18 @@
+import logging
 import os
-import yaml
-from threading import Timer
-from flask import Flask, render_template, request, redirect, url_for, jsonify, abort
+from threading import Thread, Timer
 
-from state import GlobalState
+import yaml
+from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+
+from classes import Program
+from classes.Scheduler import DayOption, Scheduler, StartTime
+from classes.Sprinkler import Sprinkler
 from mqtt_client import OBKMqtt  # a módosított, channel/set-get sémát használó kliens
+from state import GlobalState
 
 # ----------------------------
-# 1) Konfiguráció betöltése
+# Config
 # ----------------------------
 CONF_PATH = os.environ.get("ZONES_CONF", "zones.yaml")
 with open(CONF_PATH, "r", encoding="utf-8") as f:
@@ -17,29 +22,15 @@ ZONES = CONF["zones"]
 ZONES_BY_ID = {z["id"]: z for z in ZONES}
 FAILSAFE_MAX = int(CONF.get("failsafe", {}).get("max_seconds", 1800))
 POLL_SEC = int(CONF.get("poll_seconds", 3))
-
-SET_TMPL = CONF["mqtt"]["topics"]["set"]     # pl. "sprinkler/{channel}/set"
+SET_TMPL = CONF["mqtt"]["topics"]["set"]  # pl. "sprinkler/{channel}/set"
 STATE_SUB = CONF["mqtt"]["topics"]["state"]  # pl. "sprinkler/+/get"
 
-# csatorna -> zóna id gyors lookup
-CHAN_TO_ZONEID = {z["channel"]: z["id"] for z in ZONES}
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 
 # ----------------------------
-# 2) Globális állapot
-# ----------------------------
-G = GlobalState()
-for z in ZONES:
-    G.ensure_zone(z["id"])
-
-def on_state_channel(channel: int, value: int):
-    """OBK állapot callback: sprinkler/<ch>/get → '1'/'0'"""
-    zid = CHAN_TO_ZONEID.get(channel)
-    if zid is not None:
-        # a remaining értéket meghagyjuk, csak az ON/KI állapotot frissítjük
-        G.set_on(zid, bool(value), G.zones[zid].remaining)
-
-# ----------------------------
-# 3) MQTT kliens indítása
+# MQTT client
 # ----------------------------
 mqttc = OBKMqtt(
     host=CONF["mqtt"]["host"],
@@ -49,69 +40,157 @@ mqttc = OBKMqtt(
     qos=int(CONF["mqtt"].get("qos", 1)),
     set_tmpl=SET_TMPL,
     state_sub=STATE_SUB,
-    on_state_cb=on_state_channel,
+    # on_state_cb=on_state_channel,
 )
 mqttc.start()
 
 # ----------------------------
-# 4) Flask alkalmazás
+# Sprinkler objects
+# ----------------------------
+sprinklers = [
+    Sprinkler(
+        mqttc, ZONES_BY_ID[zid], z["name"], z["channel"], zid, FAILSAFE_MAX, POLL_SEC
+    )
+    for zid, z in ZONES_BY_ID.items()
+]
+SPRINKLER_BY_CHANNEL = {s.channel: s for s in sprinklers}
+SPRINKLER_BY_ID = {s.id: s for s in sprinklers}
+
+sprinkler_runs = []
+
+def get_remaining_total_runtime():
+    return sum(run.remaining_time for run in sprinkler_runs)
+
+def get_remaining_runtimes_for_sprinkler(sprinkler_id):
+    runs = [run for run in sprinkler_runs if run.sprinkler.id == sprinkler_id]
+    if len(runs) > 1:
+        return [run.remaining_time for run in runs]
+    elif len(runs) == 1:
+        return runs[0].remaining_time
+    else:
+        return 0
+
+# ----------------------------
+# Scheduler
+# ----------------------------
+
+# DUMMY DATA
+program1 = Program(1, "Morning Program", sprinklers, [(2, 30), (3, 30)], logger=logger)
+dummy_day_opts = [DayOption("Everyday Morning", StartTime(17, 30), program1, day=None)]
+
+scheduler = Scheduler(dummy_day_opts, sprinkler_runs, logger=logger)
+
+# ----------------------------
+# Flask API
 # ----------------------------
 app = Flask(__name__)
+
 
 @app.get("/")
 def dashboard():
     # a zones blokkot HTMX tölti majd be és frissíti
     return render_template("dashboard.html", zones=ZONES, poll_sec=POLL_SEC)
 
+
 @app.get("/partial/zones")
 def partial_zones():
     # csak a zónák rész-sablont rendereljük (HTMX)
     return render_template("_zones_partial.html", zones=ZONES, G=G)
+
 
 @app.post("/zones/<int:zid>/on")
 def zone_on(zid: int):
     seconds = int(request.form.get("seconds") or request.args.get("seconds") or 60)
     if seconds > FAILSAFE_MAX:
         seconds = FAILSAFE_MAX
-    z = ZONES_BY_ID.get(zid) or abort(404)
+    # z = ZONES_BY_ID.get(zid) or abort(404)
 
-    # 1) MQTT publish: sprinkler/<ch>/set  "1"
-    mqttc.set_channel(z["channel"], 1)
+    # # 1) MQTT publish: sprinkler/<ch>/set  "1"
+    # mqttc.set_channel(z["channel"], 1)
 
-    # 2) helyi állapot beállítás + visszaszámláló
-    G.set_on(zid, True, remaining=seconds)
+    # # 2) helyi állapot beállítás + visszaszámláló
+    # G.set_on(zid, True, remaining=seconds)
 
-    # 3) időzített kikapcsolás (egyszerű Timer)
-    def _off():
-        mqttc.set_channel(z["channel"], 0)
-        G.set_on(zid, False, remaining=None)
+    # # 3) időzített kikapcsolás (egyszerű Timer)
+    # def _off():
+    #     mqttc.set_channel(z["channel"], 0)
+    #     G.set_on(zid, False, remaining=None)
 
-    Timer(seconds, _off).start()
+    # Timer(seconds, _off).start()
+
+    sprinkler = SPRINKLER_BY_ID.get(zid)
+    if sprinkler is None:
+        abort(404)
+
+    run = sprinkler.turn_on(seconds)
+    if run:
+        sprinkler_runs.append(run)
 
     return redirect(url_for("dashboard"))
+
 
 @app.post("/zones/<int:zid>/off")
 def zone_off(zid: int):
-    z = ZONES_BY_ID.get(zid) or abort(404)
-    mqttc.set_channel(z["channel"], 0)
-    G.set_on(zid, False, remaining=None)
+    # z = ZONES_BY_ID.get(zid) or abort(404)
+    # mqttc.set_channel(z["channel"], 0)
+    # G.set_on(zid, False, remaining=None)
+
+    sprinkler = SPRINKLER_BY_ID.get(zid)
+    if sprinkler is None:
+        abort(404)
+    sprinkler.turn_off()
     return redirect(url_for("dashboard"))
+
 
 # Opcionális: egyszerű JSON API
 @app.get("/api/zones")
 def api_zones():
     out = []
-    for z in ZONES:
-        st = G.zones[z["id"]]
-        out.append({
-            "id": z["id"],
-            "name": z["name"],
-            "channel": z["channel"],
-            "on": st.on,
-            "remaining": st.remaining
-        })
+    # for z in ZONES:
+    #     st = G.zones[z["id"]]
+    #     out.append({
+    #         "id": z["id"],
+    #         "name": z["name"],
+    #         "channel": z["channel"],
+    #         "on": st.on,
+    #         "remaining": st.remaining
+    #     })
+    for sp in sprinklers:
+        out.append(
+            {
+                "id": sp.id,
+                "name": sp.name,
+                "channel": sp.channel,
+                "on": sp.state == 1,
+                "remaining": sp.remaining_time(),
+            }
+        )
     return jsonify(out)
+
+
+# @app.post("api/schedule")
+# def update_scheduler():
+
+# @app.post("api/schedule")
+# def update_scheduler():
+
+
+# ----------------------------
+# Main
+# ----------------------------
+def run_app():
+    app.run(host="0.0.0.0", port=5000)
+
+
+def run_scheduler():
+    scheduler.start()
+
+
+api_thread = Thread(target=run_app, daemon=True)
+scheduler_thread = Thread(target=run_scheduler, daemon=True)
 
 if __name__ == "__main__":
     # Debug nélkül fut Pi1-en
-    app.run(host="0.0.0.0", port=5000)
+    api_thread.start()
+
+    scheduler_thread.start()

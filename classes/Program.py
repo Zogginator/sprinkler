@@ -1,24 +1,21 @@
-from Sprinkler import SprinklerRun
+from classes.Sprinkler import SprinklerRun
 
 
 class Program:
     def __init__(self, id, name, sprinklers, runtimes, logger=None):
-        if self.logger is None:
-            import logging
-
-            logging.basicConfig(level=logging.DEBUG)
+        if logger is None:
             logger = logging.getLogger(__name__)
         self.logger = logger
 
         self.id = id
         self.name = name
-        self.sprinkers = sprinklers  # list of sprinkler objects
-        self.runtimes = runtimes  # list of (sprinkler_id, runtime) tuples
+        self.sprinklers = sprinklers  # list of sprinkler objects
+        self.runtimes = runtimes  # list of (sprinkler_id, runtime) tuples eg. [(2, 30), (3, 30)]
 
         # Dictionary mapping sprinkler IDs to sprinkler objects for quick lookup
-        self.SPRINKLERS_BY_ID = {s.id: s for s in self.sprinkers}
+        self.SPRINKLERS_BY_ID = {s.id: s for s in self.sprinklers}          # {1: <Sprinkl  er object 1>, 2: <Sprinkler object 1>, 3: <Sprinkler object 1>}
 
-    def get_runs(self) -> list[SprinklerRun]:
+    def get_runs(self) -> list[SprinklerRun]:           #[<classes.Sprinkler.SprinklerRun object 1>, <classes.Sprinkler.SprinklerRun object 2]
         runs = []
         # Iterate over each (sprinkler_id, runtime) tuple
         for run_id, runtime in self.runtimes:

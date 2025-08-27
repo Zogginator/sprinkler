@@ -4,6 +4,7 @@ from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+
 from classes.Program import Program
 
 
@@ -19,6 +20,7 @@ class DayOption:
         self.start_time = start_time
         self.day = day  # Day of week (optional)
         self.program = program
+
 
 
 class Scheduler:

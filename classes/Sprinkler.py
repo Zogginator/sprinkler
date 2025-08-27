@@ -22,6 +22,7 @@ class Sprinkler:
         if logger is None:
             logging.basicConfig(level=logging.DEBUG)
             logger = logging.getLogger(__name__)
+        self.logger = logger
 
         # Initialize sprinkler attributes
         self.mqttc = mqttc
@@ -36,7 +37,7 @@ class Sprinkler:
         self.last_activation = None
         self.last_termination = None
 
-        self.dummy = dummy
+        self.dummy = dummy  #testing with dummy sprinklers, without starting real ones
 
     def turn_on(self, seconds):
         try:
@@ -98,6 +99,7 @@ class SprinklerRun:
         if logger is None:
             logging.basicConfig(level=logging.DEBUG)
             logger = logging.getLogger(__name__)
+        self.logger=logger
 
         # Initialize run attributes
         self.sprinkler = sprinkler
@@ -113,6 +115,7 @@ class SprinklerRun:
         ]  # 0=scheduled, 1=running, 2=completed, 3=terminated, 4=failed
         self.created_at = datetime.datetime.now()
         self.started_at = None
+        self.done = threading.Event()
 
     def run(self):
         # Start countdown and activate sprinkler
@@ -152,12 +155,16 @@ class SprinklerRun:
         self._active = False
         if self._timer:
             self._timer.cancel()
+        if getattr(self.sprinkler, "state", 0) == 1:
+            self.sprinkler.turn_off()
+        self.done.set()
         # Optionally, add cleanup code here
 
     def stop(self):
         # Stop the run externally
         with self._lock:
             self._destroy()
+
 
 
 SPRINKLER_RUN_STATE = {
@@ -169,6 +176,24 @@ SPRINKLER_RUN_STATE = {
 }
 
 if __name__ == "__main__":
+    
+    def run_sequentially(runs, delay_seconds=2):
+        for r in runs:
+            r.run()
+            last_len = 0
+            # r.done.wait()           # wait until this run finishes.replce below with this if printing progress not needed
+            try:
+                while not r.done.wait(timeout=1):
+                    rem = max(0, int(getattr(r, "remaining_time", 0)))
+                    msg = f"Running {r.sprinkler.name}: {rem:02d}s remaining"
+                    print("\r" + msg + " " * max(0, last_len - len(msg)), end="", flush=True)
+                    last_len = len(msg)
+            finally:
+                # clear the line and report completion
+                print("\r" + " " * last_len + "\r", end="")
+                print(f"{r.sprinkler.name}: finished")
+            time.sleep(delay_seconds)
+    
     print("Testing SprinklerRun...")
 
     # Create dummy sprinkler instances for testing
@@ -181,19 +206,8 @@ if __name__ == "__main__":
     runs.append(SprinklerRun(10, sprinklers[0]))
     runs.append(SprinklerRun(10, sprinklers[1]))
 
-    # Start first run
-    runs[0].run()
-    time.sleep(2)
-    # Start second run after 2 seconds
-    runs[1].run()
 
-    # Monitor active runs and print remaining times
-    while True:
-        time.sleep(1)
-        remaining = [r.remaining_time for r in runs if r._active]
-        runtimes = [r.run_time for r in runs if r._active]
-        print("Active runs remaining times:", remaining)
-        print("Active runs total times:", runtimes)
-        if len(remaining) == 0:
-            print("No active runs left, exiting.")
-            break
+    run_sequentially(runs, delay_seconds=2)
+    print("All runs completed.")
+
+

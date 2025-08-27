@@ -18,7 +18,7 @@ class OBKMqtt:
         qos,
         set_tmpl,
         state_sub,
-        on_state_cb,
+        # on_state_cb,
         on_log=None,
     ):
         self.host, self.port = host, port
@@ -26,7 +26,7 @@ class OBKMqtt:
         self.qos = qos
         self.set_tmpl = set_tmpl  # pl.: sprinkler/{channel}/set
         self.state_sub = state_sub  # pl.: sprinkler/+/get
-        self.on_state_cb = on_state_cb  # callback(channel:int, value:int)
+        # self.on_state_cb = on_state_cb  # callback(channel:int, value:int)
         self.on_log = on_log or (lambda *a, **k: None)
 
         self.client = mqtt.Client(

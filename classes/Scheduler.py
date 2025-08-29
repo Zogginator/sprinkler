@@ -1,11 +1,15 @@
+from __future__ import annotations
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo    
+TZ = ZoneInfo("Europe/Budapest")   # YAML-ból kéne átvennie
+
+from classes.Program import program_constructor_from_db
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
-
-from classes.Program import Program
 
 
 class StartTime:
@@ -15,61 +19,110 @@ class StartTime:
 
 
 class DayOption:
-    def __init__(self, name, start_time: StartTime, program: Program, day=None):
-        self.name = name
+    def __init__(self, dop_name, start_time: StartTime, 
+                 program_id: str | None = None, 
+                 steps: list[tuple[int,int]] | None = None,
+                 day=None):
+        
+        self.dop_name = dop_name
         self.start_time = start_time
+        self.program_id = program_id
+        self.steps = steps
         self.day = day  # Day of week (optional)
-        self.program = program
-
 
 
 class Scheduler:
-    def __init__(self, day_options: list[DayOption], runs_list, logger=None):
-        if logger is None:
-            logging.basicConfig(level=logging.DEBUG)
-            logger = logging.getLogger(__name__)
-        self.logger = logger
+    def __init__(self, logger=None):
+        
+        self.logger = logger or logging.getLogger(__name__)
 
-        self.day_options = day_options
-        self.runs_list = runs_list
 
-        self.scheduler = BackgroundScheduler()  # Create background scheduler
+        jobstores = {'default': SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')}
+        job_defaults = {'coalesce': False, 'max_instances': 10}
+        self.scheduler = BackgroundScheduler(jobstores=jobstores, job_defaults=job_defaults, timezone=TZ)  # Create background scheduler
 
-        for day_opt in self.day_options:
-            if day_opt.day is None:
-                # If no specific day is set, schedule job to run every day at the specified time
-                self.scheduler.add_job(
-                    self.start_program,
-                    "cron",
-                    hour=day_opt.start_time.hour,
-                    minute=day_opt.start_time.minute,
-                    args=[day_opt],
-                )
-                logger.debug(
-                    f"Scheduled {day_opt.name} to run every day at {day_opt.start_time.hour}:{day_opt.start_time.minute}"
-                )
-            else:
-                # Schedule job for a specific day of the week at the specified time
-                self.scheduler.add_job(
-                    self.start_program,
-                    "cron",
-                    hour=day_opt.start_time.hour,
-                    minute=day_opt.start_time.minute,
-                    day_of_week=day_opt.day,
-                    args=[day_opt],
-                )
-                logger.debug(
-                    f"Scheduled {day_opt.name} to run on {day_opt.day} at {day_opt.start_time.hour}:{day_opt.start_time.minute}"
-                )
+    def _extract_program_id(self, day_opt) -> str:
 
-    def start_program(self, day_opt: DayOption):
-        # Get all runs from the program
-        runs = day_opt.program.get_runs()
-        self.logger.info(
-            f"Starting program '{day_opt.name}' with {len(runs)} runs.\n"
-            + f"starting at: {datetime.now()}\n"
-            + f"scheduled time: {day_opt.start_time.hour}:{day_opt.start_time.minute}"
+        if hasattr(day_opt, "program_id") and day_opt.program_id is not None:
+            return str(day_opt.program_id)
+        if hasattr(day_opt, "steps") and day_opt.steps is not None:
+            return ('Adhoc')   # ennél jobb kell  
+        raise AttributeError("DayOption needs a program_id or steps defined.")
+
+    # Egyedi, determinisztikus job ID
+    def _job_id_for(self, day_opt: "DayOption") -> str:
+        pid = self._extract_program_id(day_opt)
+        dow = day_opt.day if getattr(day_opt, "day", None) is not None else "daily"
+        return f"program:{pid}:{dow}-{day_opt.start_time.hour:02d}{day_opt.start_time.minute:02d}"
+   
+    def add_day_option(self, dayOption: "DayOption") -> str:
+        from jobs import start_program_by_id      # top-level, perzisztens-barát
+
+        pid = self._extract_program_id(dayOption)
+        name = getattr(dayOption, "dop_name", f"Program {pid}")
+
+        cron_kwargs = dict(hour=dayOption.start_time.hour, minute=dayOption.start_time.minute)
+        if getattr(dayOption, "day", None) is not None:
+            cron_kwargs["day_of_week"] = dayOption.day
+        
+        job_kwargs = {"program_id": pid, "name": name}
+        if dayOption.steps:                       # pass steps only when you actually have them
+            job_kwargs["steps"] = list(dayOption.steps)
+        jid = self._job_id_for(dayOption)
+
+        self.scheduler.add_job(
+            start_program_by_id,
+            "cron",
+            id=jid,
+            name=name,
+            replace_existing=True,
+            kwargs=job_kwargs,
+            **cron_kwargs,
         )
-        self.runs_list.extend(runs)  # Add runs to the shared list
-        for run in runs:
-            run.run(run.run_time)
+        self.logger.debug(
+            "Scheduled %s (id=%s) at %s %02d:%02d",
+            name, jid, cron_kwargs.get("day_of_week", "every day"),
+            dayOption.start_time.hour, dayOption.start_time.minute
+        )
+        return jid
+    
+    def remove_day_option(self, dayOption: "DayOption") -> None:
+        jid = self._job_id_for(dayOption)
+        self.scheduler.remove_job(jid)
+        self.logger.debug("Removed job %s", jid)
+        
+    def adhoc_program_run(self, 
+                          steps: list[tuple[int,int]] | None = None,
+                          program_id: int | str = "adhoc",
+                          name: str = "Adhoc Program") -> str:
+        """Run once, almost immediately."""
+        from jobs import start_program_by_id
+        jid = f"adhoc:{program_id}:{int(datetime.now(TZ).timestamp())}"
+        self.scheduler.add_job(
+            start_program_by_id,
+            'date',
+            run_date=datetime.now(TZ) + timedelta(seconds=1),
+            id=jid,
+            name=name,
+            kwargs={'program_id': program_id, 'steps': list(steps), 'name': name},
+            replace_existing=False,
+        )
+        self.logger.debug("Scheduled one-off %s (id=%s) to run now", name, jid)
+        return jid
+    
+    def trigger_now(self, dayOption: "DayOption") -> None:
+        """Az adott dayOption-hoz tartozó job azonnali futtatása (következő időpont előrehozása)."""
+        jid = self._job_id_for(dayOption)
+        self.scheduler.modify_job(jid, next_run_time=datetime.now(TZ))
+
+    def run_program_by_id(self, program_id):  ## ez kell?
+        p = program_constructor_from_db(program_id)
+        try:
+            p.run_sequentially()
+        finally:
+            p.cleanup()
+
+
+
+
+    

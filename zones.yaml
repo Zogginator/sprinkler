@@ -28,3 +28,5 @@ zones:
 failsafe:
   max_seconds: 600
   poll_seconds: 3
+
+timezone: "Europe/Budapest"

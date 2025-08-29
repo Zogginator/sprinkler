@@ -19,10 +19,7 @@ class Sprinkler:
         dummy=False,
         logger=None,
     ):
-        if logger is None:
-            logging.basicConfig(level=logging.DEBUG)
-            logger = logging.getLogger(__name__)
-        self.logger = logger
+        self.logger = logger or logging.getLogger(__name__)
 
         # Initialize sprinkler attributes
         self.mqttc = mqttc
@@ -96,10 +93,8 @@ class Sprinkler:
 
 class SprinklerRun:
     def __init__(self, run_time, sprinkler: Sprinkler, logger=None):
-        if logger is None:
-            logging.basicConfig(level=logging.DEBUG)
-            logger = logging.getLogger(__name__)
-        self.logger=logger
+        
+        self.logger = logger or logging.getLogger(__name__)
 
         # Initialize run attributes
         self.sprinkler = sprinkler
@@ -118,12 +113,18 @@ class SprinklerRun:
         self.done = threading.Event()
 
     def run(self):
-        # Start countdown and activate sprinkler
-        self.sprinkler.logger.info(
-            f"Starting SprinklerRun for {self.sprinkler.name} for {self.run_time} seconds."
-        )
-        self._start_countdown()
-        self.sprinkler.turn_on(self.run_time)
+        try:
+            # Start countdown and activate sprinkler
+            self.sprinkler.logger.info(
+                f"Starting SprinklerRun for {self.sprinkler.name} for {self.run_time} seconds."
+            )
+            self._start_countdown()
+            self.sprinkler.turn_on(self.run_time)
+        except Exception as e:
+            self.logger.exception("Run failed: %s", e)
+            self._finish(state=SPRINKLER_RUN_STATE[4])  # FAILED
+            raise
+
 
     def _start_countdown(self):
         # Internal countdown function, decrements remaining_time every second
@@ -138,6 +139,7 @@ class SprinklerRun:
                 else:
                     # Schedule next countdown tick
                     self._timer = threading.Timer(1, countdown)
+                    self._timer.daemon = True
                     self._timer.start()
 
         self._timer = threading.Timer(1, countdown)
@@ -147,25 +149,34 @@ class SprinklerRun:
 
         self.state = SPRINKLER_RUN_STATE[1]  # running
 
+    # call this when countdown naturally hits zero
     def _destroy(self):
-        # Stop countdown and cleanup
-        self.sprinkler.logger.info(
+        self.logger.info(
             f"Destroying SprinklerRun for {self.sprinkler.name}. Final remaining_time: {self.remaining_time}"
         )
-        self._active = False
-        if self._timer:
-            self._timer.cancel()
-        if getattr(self.sprinkler, "state", 0) == 1:
-            self.sprinkler.turn_off()
-        self.done.set()
-        # Optionally, add cleanup code here
+        self._finish(state=SPRINKLER_RUN_STATE[2])       # COMPLETED
 
     def stop(self):
         # Stop the run externally
-        with self._lock:
-            self._destroy()
+        self._finish(state=SPRINKLER_RUN_STATE[3])      # TERMINATED    
 
-
+    def _finish(self, state):
+        """Idempotent cleanup: cancel timers, turn off sprinkler, set state & event."""
+        if getattr(self, "_active", False):
+            self._active = False
+            try:
+                if self._timer:
+                    self._timer.cancel()
+            finally:
+                self._timer = None
+            # Ensure valve is off
+            try:
+                if getattr(self.sprinkler, "state", 0) == 1:
+                    self.sprinkler.turn_off()
+            except Exception as e:
+                self.logger.warning("turn_off failed during cleanup: %s", e)
+            self.state = state
+            self.done.set()
 
 SPRINKLER_RUN_STATE = {
     0: "SCHEDULED",
@@ -174,7 +185,7 @@ SPRINKLER_RUN_STATE = {
     3: "TERMINATED",
     4: "FAILED",
 }
-
+"""
 if __name__ == "__main__":
     
     def run_sequentially(runs, delay_seconds=2):
@@ -209,5 +220,5 @@ if __name__ == "__main__":
 
     run_sequentially(runs, delay_seconds=2)
     print("All runs completed.")
-
+"""
 

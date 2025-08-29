@@ -1,5 +1,6 @@
 import json, threading, time, re
 import paho.mqtt.client as mqtt
+import logging  
 
 
 class OBKMqtt:
@@ -19,7 +20,7 @@ class OBKMqtt:
         set_tmpl,
         state_sub,
         # on_state_cb,
-        on_log=None,
+        logger=None,
     ):
         self.host, self.port = host, port
         self.username, self.password = username, password
@@ -27,7 +28,8 @@ class OBKMqtt:
         self.set_tmpl = set_tmpl  # pl.: sprinkler/{channel}/set
         self.state_sub = state_sub  # pl.: sprinkler/+/get
         # self.on_state_cb = on_state_cb  # callback(channel:int, value:int)
-        self.on_log = on_log or (lambda *a, **k: None)
+        
+        self.logger = logger or logging.getLogger(__name__)
 
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
@@ -62,7 +64,7 @@ class OBKMqtt:
                 ch = int(m.group(1))
                 # self.on_state_cb(ch, val)
         except Exception as e:
-            self.on_log(f"state parse error: {e}")
+            self.logger.warning(f"state parse error: {e}")
 
     def set_channel(self, channel: int, value: int):
         topic = self.set_tmpl.format(channel=channel)

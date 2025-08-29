@@ -2,13 +2,15 @@ import logging
 import os
 from threading import Thread, Timer
 import time
+from datetime import datetime
 
 import yaml
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
-from classes.Program import Program
+import app_runtime 
+from classes.Program import Program, program_constructor
 from classes.Scheduler import DayOption, Scheduler, StartTime
-from classes.Sprinkler import Sprinkler
+from classes.Sprinkler import Sprinkler, SprinklerRun
 from mqtt_client import OBKMqtt  # a módosított, channel/set-get sémát használó kliens
 from state import GlobalState
 
@@ -19,43 +21,19 @@ CONF_PATH = os.environ.get("ZONES_CONF", "zones.yaml")
 with open(CONF_PATH, "r", encoding="utf-8") as f:
     CONF = yaml.safe_load(f)
 
+
 ZONES = CONF["zones"]  # [{'id': 1, 'name': 'Előkert', 'channel': 31}, {'id': 2, 'name': 'Oldalkert', 'channel': 32}, {'id': 3, 'name': 'Hátsókert', 'channel': 33}]
 ZONES_BY_ID = {z["id"]: z for z in ZONES}  # {1: {'id': 1, 'name': 'Előkert', 'channel': 31}, 2: {'id': 2, 'name': 'Oldalkert', 'channel': 32}, 3: {'id': 3, 'name': 'Hátsókert', 'channel': 33}}
 FAILSAFE_MAX = int(CONF.get("failsafe", {}).get("max_seconds", 1800)) # 600
 POLL_SEC = int(CONF.get("poll_seconds", 3)) #3
 SET_TMPL = CONF["mqtt"]["topics"]["set"]  # "sprinkler/{channel}/set"
 STATE_SUB = CONF["mqtt"]["topics"]["state"] # "sprinkler/+/get"
+TIMEZONE = CONF ["timezone"]  #"Europe/Budapest"
 
+app_runtime.init_runtime(CONF)  #mqtttc indítás, és SPRINKLER_BY_ID inicializálás
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-
-# ----------------------------
-# MQTT client
-# ----------------------------
-mqttc = OBKMqtt(
-    host=CONF["mqtt"]["host"], # '192.168.1.173'
-    port=int(CONF["mqtt"]["port"]), # 1883
-    username=CONF["mqtt"].get("username", ""), # 'homeassistant'
-    password=CONF["mqtt"].get("password", ""), # 'nadap'
-    qos=int(CONF["mqtt"].get("qos", 1)), # 1
-    set_tmpl=SET_TMPL, # 'sprinkler/{channel}/set'
-    state_sub=STATE_SUB, # 'sprinkler/+/get'
-    # on_state_cb=on_state_channel,
-)
-mqttc.start()
-
-# ----------------------------
-# Sprinkler objects
-# ----------------------------
-sprinklers = [
-    Sprinkler(
-        mqttc, ZONES_BY_ID[zid], z["name"], z["channel"], zid, FAILSAFE_MAX, POLL_SEC
-    )
-    for zid, z in ZONES_BY_ID.items()
-]                                                                   # [<Sprinkler object 1>, <Sprinkler object 2>, <Sprinkler object 3>]
-SPRINKLER_BY_CHANNEL = {s.channel: s for s in sprinklers}           # {31: <Sprinkler object 1>, 32: <Sprinkler object 1>, 33: <Sprinkler object 1>}
-SPRINKLER_BY_ID = {s.id: s for s in sprinklers}                     # {1: <Sprinkler object 1>, 2: <Sprinkler object 1>, 3: <Sprinkler object 1>}
+app_runtime.logger = logging.getLogger(__name__)
+                
 
 sprinkler_runs = []
 
@@ -69,17 +47,14 @@ def get_remaining_runtimes_for_sprinkler(sprinkler_id):
     elif len(runs) == 1:
         return runs[0].remaining_time
     else:
-        return 0
+        return
 
-# ----------------------------
-# Scheduler
-# ----------------------------
+program1 = program_constructor('1', 'Temporary Program', [(3, 10), (2,10)])     # <classes.Program.Program object>
+test2 = DayOption("Everyday Evening", StartTime(21, 14), program_id='test', steps=[(3,600), (2, 600), (1,600)], day=None)    # <classes.Scheduler.DayOption object>
 
-# DUMMY DATA
-program1 = Program(1, "Morning Program", sprinklers, [(3, 10), (2, 10), (1,10)], logger=logger)     # <classes.Program.Program object>
-dummy_day_opts = [DayOption("Everyday Morning", StartTime(17, 30), program1, day=None)]     # <classes.Scheduler.DayOption object>
 
-sched = Scheduler(dummy_day_opts, sprinkler_runs, logger=logger)            #<classes.Scheduler.Scheduler object>
+sched = Scheduler(logger=app_runtime.logger)            #<classes.Scheduler.Scheduler object>
+
 
 # ----------------------------
 # Flask API
@@ -87,22 +62,6 @@ sched = Scheduler(dummy_day_opts, sprinkler_runs, logger=logger)            #<cl
 app = Flask(__name__)
 
 
-def run_sequentially(runs, delay_seconds=2):
-    for r in runs:
-        r.run()
-        last_len = 0
-        # r.done.wait()           # wait until this run finishes.replce below with this if printing progress not needed
-        try:
-            while not r.done.wait(timeout=1):
-                rem = max(0, int(getattr(r, "remaining_time", 0)))
-                msg = f"Running {r.sprinkler.name}: {rem:02d}s remaining"
-                print("\r" + msg + " " * max(0, last_len - len(msg)), end="", flush=True)
-                last_len = len(msg)
-        finally:
-            # clear the line and report completion
-            print("\r" + " " * last_len + "\r", end="")
-            print(f"{r.sprinkler.name}: finished")
-        time.sleep(delay_seconds)
 
 @app.get("/")
 def dashboard():
@@ -205,10 +164,10 @@ def run_app():
 
 
 api_thread = Thread(target=run_app, daemon=True)
-#scheduler_thread = Thread(target=run_scheduler, daemon=True)
+
 
 if __name__ == "__main__":
     
     api_thread.start()
     sched.scheduler.start()
-    #scheduler_thread.start()
+

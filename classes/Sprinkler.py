@@ -6,6 +6,16 @@ from asyncio import run
 from threading import Timer
 
 
+class RainSensor:
+    def __init__(self, mqttc, channel):
+        self.mqttc= mqttc
+        self.channel=channel
+
+    def get_rain_status():
+        try:
+            self.mqttc.get_channel
+
+
 class Sprinkler:
     def __init__(
         self,
@@ -86,9 +96,9 @@ class Sprinkler:
             # Handle errors during deactivation
             self.logger.error(f"Error turning off sprinkler {self.name}: {e}")
 
-    def remaining_time(self):
-        # Return remaining time for the first run if exists
-        return self.runs[0].remaining_time if self.runs else 0
+    def remaining_time(self, run=None):
+        # Return remaining time from the provided active SprinklerRun, or 0 if none
+        return run.remaining_time if run is not None else 0
 
 
 class SprinklerRun:
@@ -185,40 +195,5 @@ SPRINKLER_RUN_STATE = {
     3: "TERMINATED",
     4: "FAILED",
 }
-"""
-if __name__ == "__main__":
-    
-    def run_sequentially(runs, delay_seconds=2):
-        for r in runs:
-            r.run()
-            last_len = 0
-            # r.done.wait()           # wait until this run finishes.replce below with this if printing progress not needed
-            try:
-                while not r.done.wait(timeout=1):
-                    rem = max(0, int(getattr(r, "remaining_time", 0)))
-                    msg = f"Running {r.sprinkler.name}: {rem:02d}s remaining"
-                    print("\r" + msg + " " * max(0, last_len - len(msg)), end="", flush=True)
-                    last_len = len(msg)
-            finally:
-                # clear the line and report completion
-                print("\r" + " " * last_len + "\r", end="")
-                print(f"{r.sprinkler.name}: finished")
-            time.sleep(delay_seconds)
-    
-    print("Testing SprinklerRun...")
 
-    # Create dummy sprinkler instances for testing
-    sprinklers = [
-        Sprinkler(None, None, "Test Sprinkler", 1, 1, dummy=True),
-        Sprinkler(None, None, "Test Sprinkler 2", 2, 2, dummy=True),
-    ]
-    runs = []
-    # Schedule two runs for sprinklers
-    runs.append(SprinklerRun(10, sprinklers[0]))
-    runs.append(SprinklerRun(10, sprinklers[1]))
-
-
-    run_sequentially(runs, delay_seconds=2)
-    print("All runs completed.")
-"""
 

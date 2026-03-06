@@ -8,9 +8,12 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
 </head>
 <body>
-  <header>
+  {% if dry_run %}
+  <div class="dry-run-banner">&#9888;&#65039; DRY RUN MODE &mdash; no hardware commands sent</div>
+  {% endif %}
+  <div class="page-header">
     <h1>Öntöző vezérlés</h1>
-  </header>
+  </div>
   <main>
     {% block content %}{% endblock %}
   </main>

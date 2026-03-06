@@ -1,10 +1,60 @@
 {% extends "base.html" %}
 {% block content %}
-<div
-  id="zones"
-  hx-get="{{ url_for('partial_zones') }}"
-  hx-trigger="load, every {{ poll_sec }}s"
-  hx-swap="outerHTML">
-  Betöltés...
-</div>
+
+{# ── Zone cards (HTMX polled) ── #}
+<section>
+  <p class="section-title">Zónák</p>
+  <div
+    id="zones"
+    hx-get="{{ url_for('partial_zones') }}"
+    hx-trigger="load, every {{ poll_sec }}s"
+    hx-swap="outerHTML">
+    <div class="zone-grid">
+      {% for z in zones %}
+      <div class="zone-card"><div class="zone-name">{{ z.name }}</div><p class="loading-text">Betöltés...</p></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ── Ad-hoc program ── #}
+<section>
+  <p class="section-title">Azonnali program</p>
+  <div class="card">
+    <form method="post" action="{{ url_for('adhoc_run') }}">
+      <div class="adhoc-rows">
+        {% for z in zones %}
+        <div class="adhoc-row">
+          <span class="zone-label">{{ z.name }}</span>
+          <input type="number" name="zone_{{ z.id }}_minutes" min="1" max="60" value="10" aria-label="{{ z.name }} futási idő percben">
+          <span class="unit">perc</span>
+        </div>
+        {% endfor %}
+      </div>
+      <button type="submit" class="btn-run" {% if any_zone_on %}disabled{% endif %}>
+        Futtatás
+      </button>
+    </form>
+  </div>
+</section>
+
+{# ── Scheduled programs (read-only) ── #}
+<section>
+  <p class="section-title">Ütemezett programok</p>
+  <div class="card">
+    {% if scheduled_jobs %}
+    <div class="schedule-list">
+      {% for job in scheduled_jobs %}
+      <div class="schedule-item">
+        <span class="job-name">{{ job.name }}</span>
+        <span class="job-next">Következő: {{ job.next_run }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="schedule-empty">Nincs ütemezett program.</p>
+    {% endif %}
+  </div>
+</section>
+
 {% endblock %}

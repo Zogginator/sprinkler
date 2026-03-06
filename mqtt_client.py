@@ -20,15 +20,18 @@ class OBKMqtt:
         set_tmpl,
         state_sub,
         # on_state_cb,
+        dry_run=False,
         logger=None,
     ):
         self.host, self.port = host, port
         self.username, self.password = username, password
         self.qos = qos
         self.set_tmpl = set_tmpl  # pl.: sprinkler/{channel}/set
+        self.get_tmpl = set_tmpl.replace("/set", "/get")  # pl.: sprinkler/{channel}/get
         self.state_sub = state_sub  # pl.: sprinkler/+/get
         # self.on_state_cb = on_state_cb  # callback(channel:int, value:int)
-        
+        self.dry_run = dry_run
+
         self.logger = logger or logging.getLogger(__name__)
 
         self.client = mqtt.Client(
@@ -41,6 +44,9 @@ class OBKMqtt:
         self._thread = None
 
     def start(self):
+        if self.dry_run:
+            self.logger.info("[DRY RUN] MQTT client not started — no broker connection will be made")
+            return
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -69,4 +75,12 @@ class OBKMqtt:
     def set_channel(self, channel: int, value: int):
         topic = self.set_tmpl.format(channel=channel)
         payload = "1" if int(value) == 1 else "0"
+        if self.dry_run:
+            self.logger.info("[DRY RUN] would publish: %s = %s", topic, payload)
+            return
         self.client.publish(topic, payload, qos=self.qos, retain=False)
+
+    def get_channel(self, channel: int):
+        if self.dry_run:
+            self.logger.info("[DRY RUN] would request: %s", self.get_tmpl.format(channel=channel))
+            return

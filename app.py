@@ -10,7 +10,7 @@ from flask import Flask, abort, jsonify, redirect, render_template, request, url
 import app_runtime 
 from classes.Program import Program, program_constructor
 from classes.Scheduler import DayOption, Scheduler, StartTime
-from classes.Sprinkler import Sprinkler, SprinklerRun
+from classes.Sprinkler import Sprinkler, SprinklerRun, RainSensor
 from mqtt_client import OBKMqtt  # a módosított, channel/set-get sémát használó kliens
 from state import GlobalState
 
@@ -37,18 +37,6 @@ app_runtime.logger = logging.getLogger(__name__)
 
 sprinkler_runs = []
 
-def get_remaining_total_runtime():
-    return sum(run.remaining_time for run in sprinkler_runs)
-
-def get_remaining_runtimes_for_sprinkler(sprinkler_id):
-    runs = [run for run in sprinkler_runs if run.sprinkler.id == sprinkler_id]
-    if len(runs) > 1:
-        return [run.remaining_time for run in runs]
-    elif len(runs) == 1:
-        return runs[0].remaining_time
-    else:
-        return
-
 program1 = program_constructor('1', 'Temporary Program', [(3, 10), (2,10)])     # <classes.Program.Program object>
 test2 = DayOption("Everyday Evening", StartTime(21, 14), program_id='test', steps=[(3,600), (2, 600), (1,600)], day=None)    # <classes.Scheduler.DayOption object>
 
@@ -65,19 +53,49 @@ app = Flask(__name__)
 
 @app.get("/")
 def dashboard():
-    # a zones blokkot HTMX tölti majd be és frissíti
-    return render_template("dashboard.html", zones=ZONES, poll_sec=POLL_SEC)
+    jobs = sched.scheduler.get_jobs()
+    scheduled_jobs = [
+        {
+            "name": j.name,
+            "next_run": j.next_run_time.strftime("%Y-%m-%d %H:%M") if j.next_run_time else "–",
+        }
+        for j in jobs
+    ]
+    any_zone_on = any(sp.state == 1 for sp in app_runtime.SPRINKLER_BY_ID.values())
+    return render_template(
+        "dashboard.html",
+        zones=ZONES,
+        poll_sec=POLL_SEC,
+        dry_run=app_runtime.DRY_RUN,
+        scheduled_jobs=scheduled_jobs,
+        any_zone_on=any_zone_on,
+    )
 
 
 @app.get("/partial/zones")
 def partial_zones():
-    # csak a zónák rész-sablont rendereljük (HTMX)
-    return render_template("_zones_partial.html", zones=ZONES, G=G)
+    remaining_by_id = {}
+    for run in sprinkler_runs:
+        sid = run.sprinkler.id
+        if getattr(run, "_active", False) and sid not in remaining_by_id:
+            remaining_by_id[sid] = max(0, int(run.remaining_time))
+    return render_template(
+        "_zones_partial.html",
+        zones=ZONES,
+        sprinklers=app_runtime.SPRINKLER_BY_ID,
+        remaining_by_id=remaining_by_id,
+        poll_sec=POLL_SEC,
+        failsafe_max=FAILSAFE_MAX,
+    )
 
 
 @app.post("/zones/<int:zid>/on")
 def zone_on(zid: int):
-    seconds = int(request.form.get("seconds") or request.args.get("seconds") or 60)
+    minutes = request.form.get("minutes")
+    if minutes:
+        seconds = int(minutes) * 60
+    else:
+        seconds = int(request.form.get("seconds") or request.args.get("seconds") or 60)
     if seconds > FAILSAFE_MAX:
         seconds = FAILSAFE_MAX
     # z = ZONES_BY_ID.get(zid) or abort(404)
@@ -95,14 +113,34 @@ def zone_on(zid: int):
 
     # Timer(seconds, _off).start()
 
-    sprinkler = SPRINKLER_BY_ID.get(zid)
+    sprinkler = app_runtime.SPRINKLER_BY_ID.get(zid)
     if sprinkler is None:
         abort(404)
 
     run = sprinkler.turn_on(seconds)
     if run:
         sprinkler_runs.append(run)
+        def _cleanup(r):
+            r.done.wait()
+            try:
+                sprinkler_runs.remove(r)
+            except ValueError:
+                pass
+        Thread(target=_cleanup, args=(run,), daemon=True).start()
 
+    return redirect(url_for("dashboard"))
+
+
+@app.post("/adhoc")
+def adhoc_run():
+    steps = []
+    for z in ZONES:
+        key = f"zone_{z['id']}_minutes"
+        minutes = int(request.form.get(key) or 0)
+        if minutes > 0:
+            steps.append((z["id"], min(minutes * 60, FAILSAFE_MAX)))
+    if steps:
+        sched.adhoc_program_run(steps=steps, name="Azonnali program")
     return redirect(url_for("dashboard"))
 
 
@@ -112,7 +150,7 @@ def zone_off(zid: int):
     # mqttc.set_channel(z["channel"], 0)
     # G.set_on(zid, False, remaining=None)
 
-    sprinkler = SPRINKLER_BY_ID.get(zid)
+    sprinkler = app_runtime.SPRINKLER_BY_ID.get(zid)
     if sprinkler is None:
         abort(404)
     sprinkler.turn_off()
@@ -132,7 +170,7 @@ def api_zones():
     #         "on": st.on,
     #         "remaining": st.remaining
     #     })
-    for sp in sprinklers:
+    for sp in app_runtime.SPRINKLER_BY_ID.values():
         out.append(
             {
                 "id": sp.id,

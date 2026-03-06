@@ -9,6 +9,7 @@ mqtt:
   base_topic: "sprinkler"
   topics:
     set:    "sprinkler/{channel}/set"   # publish ide: "1" vagy "0"
+    get:    "sprinkler/{channel}/get"
     state:  "sprinkler/+/get"           # feliratkozás: "0" vagy "1" (wildcard)
 
 device:
@@ -25,8 +26,13 @@ zones:
     name: "Hátsókert"
     channel: 33
 
+rainsensor:
+  channel: 10
+
 failsafe:
   max_seconds: 600
   poll_seconds: 3
 
 timezone: "Europe/Budapest"
+
+dry_run: false

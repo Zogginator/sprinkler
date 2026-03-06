@@ -61,20 +61,18 @@ class Sprinkler:
 
     def turn_off(self):
         try:
+            # Set state immediately so UI reflects OFF before MQTT roundtrip
+            self.state = 0
+            self.last_termination = datetime.datetime.now()
             if not self.dummy:
-                # Deactivate hardware channel
                 self.mqttc.set_channel(self.channel, 0)
                 self.logger.info(
                     f"Turning off sprinkler {self.name} (channel {self.channel})"
                 )
             else:
-                # Simulate deactivation in dummy mode
                 self.logger.info(
                     f"[DUMMY] Turning off sprinkler {self.name} (channel {self.channel})"
                 )
-
-            self.state = 0
-            self.last_termination = datetime.datetime.now()
 
         except Exception as e:
             # Handle errors during deactivation
@@ -109,6 +107,9 @@ class SprinklerRun:
     def run(self):
         try:
             sp = self.sprinkler
+            # Set state immediately so UI reflects ON before MQTT roundtrip
+            sp.state = 1
+            sp.last_activation = datetime.datetime.now()
             if not sp.dummy:
                 sp.mqttc.set_channel(sp.channel, 1)
                 sp.logger.info(
@@ -118,8 +119,6 @@ class SprinklerRun:
                 sp.logger.info(
                     f"[DUMMY] Turning on sprinkler {sp.name} (channel {sp.channel}) for {self.run_time} seconds"
                 )
-            sp.state = 1
-            sp.last_activation = datetime.datetime.now()
             self._start_countdown()
         except Exception as e:
             self.logger.exception("Run failed: %s", e)

@@ -42,11 +42,19 @@ def init_runtime(conf):
 
     def _on_state(channel: int, value: int):
         sp = _sprinkler_by_channel.get(channel)
-        if sp is not None:
-            sp.state = value
-            logger.debug("State update from hardware: channel=%d state=%d", channel, value)
-        else:
+        if sp is None:
             logger.warning("Received state for unknown channel %d", channel)
+            return
+        sp.state = value
+        logger.debug("State update from hardware: channel=%d state=%d", channel, value)
+        if value == 0:
+            # Hardware reported OFF — stop any active run so it doesn't desync
+            for run in list(sprinkler_runs):
+                if run.sprinkler is sp and getattr(run, "_active", False):
+                    logger.info(
+                        "Hardware OFF on channel %d — terminating active run", channel
+                    )
+                    run.stop()
 
     mqttc = OBKMqtt(
         host=conf["mqtt"]["host"],

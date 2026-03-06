@@ -36,6 +36,12 @@
     });
 
     function syncCountdowns() {
+      // Clear ALL existing timers before restarting — prevents stale intervals
+      // for zones that left the DOM or turned off between polls
+      Object.keys(_cdTimers).forEach(function(zid) {
+        clearInterval(_cdTimers[zid]); delete _cdTimers[zid];
+      });
+
       document.querySelectorAll('[data-zone-id]').forEach(function(card) {
         var zid = card.dataset.zoneId;
         var rem = parseInt(card.dataset.remaining, 10) || 0;
@@ -45,16 +51,15 @@
         var inp = card.querySelector('input[name="minutes"]');
         if (inp && _savedInputs[zid] !== undefined) inp.value = _savedInputs[zid];
 
-        if (_cdTimers[zid]) { clearInterval(_cdTimers[zid]); delete _cdTimers[zid]; }
-        if (!el) return;
-        if (rem <= 0) { el.classList.add('hidden'); el.textContent = ''; return; }
-        el.classList.remove('hidden');
+        // No element or nothing remaining — nothing to count down
+        if (!el || rem <= 0) return;
+
         el.textContent = fmtTime(rem);
         _cdTimers[zid] = setInterval(function() {
           rem--;
           if (rem <= 0) {
             clearInterval(_cdTimers[zid]); delete _cdTimers[zid];
-            el.classList.add('hidden'); el.textContent = '';
+            el.remove();
           } else {
             el.textContent = fmtTime(rem);
           }

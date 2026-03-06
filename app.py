@@ -80,6 +80,7 @@ def partial_zones():
         sid = run.sprinkler.id
         if getattr(run, "_active", False) and sid not in remaining_by_id:
             remaining_by_id[sid] = max(0, int(run.remaining_time))
+    app_runtime.logger.debug("partial_zones remaining_by_id=%r", remaining_by_id)
 
     any_zone_on = any(sp.state == 1 for sp in app_runtime.SPRINKLER_BY_ID.values())
 
@@ -168,13 +169,18 @@ def api_zones():
     #         "remaining": st.remaining
     #     })
     for sp in app_runtime.SPRINKLER_BY_ID.values():
+        active_run = next(
+            (r for r in app_runtime.sprinkler_runs
+             if r.sprinkler.id == sp.id and getattr(r, "_active", False)),
+            None,
+        )
         out.append(
             {
                 "id": sp.id,
                 "name": sp.name,
                 "channel": sp.channel,
                 "on": sp.state == 1,
-                "remaining": sp.remaining_time(),
+                "remaining": sp.remaining_time(active_run),
             }
         )
     return jsonify(out)

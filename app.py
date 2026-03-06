@@ -150,6 +150,9 @@ def zone_off(zid: int):
     if sprinkler is None:
         abort(404)
     sprinkler.turn_off()
+    for run in list(app_runtime.sprinkler_runs):
+        if run.sprinkler.id == zid and getattr(run, "_active", False):
+            run.stop()
     if request.headers.get("HX-Request"):
         return partial_zones()
     return redirect(url_for("dashboard"))

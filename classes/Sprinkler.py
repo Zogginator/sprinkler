@@ -46,34 +46,18 @@ class Sprinkler:
 
         self.dummy = dummy  #testing with dummy sprinklers, without starting real ones
 
-    def turn_on(self, seconds):
+    def turn_on(self, seconds) -> "SprinklerRun | None":
         try:
-            # Limit activation time to failsafe_max
             if seconds > self.failsafe_max:
                 seconds = self.failsafe_max
 
-            if not self.dummy:
-                # Activate hardware channel
-                self.mqttc.set_channel(self.channel, 1)
-                self.logger.info(
-                    f"Turning on sprinkler {self.name} (channel {self.channel}) for {seconds} seconds"
-                )
-            else:
-                # Simulate activation in dummy mode
-                self.logger.info(
-                    f"[DUMMY] Turning on sprinkler {self.name} (channel {self.channel}) for {seconds} seconds"
-                )
-            self.state = 1
-            self.last_activation = datetime.datetime.now()
-
-            # Schedule automatic turn off after 'seconds'
-            Timer(seconds, self.turn_off).start()
-            return True
+            run = SprinklerRun(run_time=seconds, sprinkler=self, logger=self.logger)
+            run.run()
+            return run
 
         except Exception as e:
-            # Handle errors during activation
             self.logger.error(f"Error turning on sprinkler {self.name}: {e}")
-            return False
+            return None
 
     def turn_off(self):
         try:
@@ -124,12 +108,19 @@ class SprinklerRun:
 
     def run(self):
         try:
-            # Start countdown and activate sprinkler
-            self.sprinkler.logger.info(
-                f"Starting SprinklerRun for {self.sprinkler.name} for {self.run_time} seconds."
-            )
+            sp = self.sprinkler
+            if not sp.dummy:
+                sp.mqttc.set_channel(sp.channel, 1)
+                sp.logger.info(
+                    f"Turning on sprinkler {sp.name} (channel {sp.channel}) for {self.run_time} seconds"
+                )
+            else:
+                sp.logger.info(
+                    f"[DUMMY] Turning on sprinkler {sp.name} (channel {sp.channel}) for {self.run_time} seconds"
+                )
+            sp.state = 1
+            sp.last_activation = datetime.datetime.now()
             self._start_countdown()
-            self.sprinkler.turn_on(self.run_time)
         except Exception as e:
             self.logger.exception("Run failed: %s", e)
             self._finish(state=SPRINKLER_RUN_STATE[4])  # FAILED

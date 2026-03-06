@@ -118,7 +118,7 @@ def zone_on(zid: int):
         abort(404)
 
     run = sprinkler.turn_on(seconds)
-    if run:
+    if run is not None and hasattr(run, 'sprinkler'):
         sprinkler_runs.append(run)
         def _cleanup(r):
             r.done.wait()

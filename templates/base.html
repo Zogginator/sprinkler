@@ -18,14 +18,9 @@
     {% block content %}{% endblock %}
   </main>
   <script>
-    var _cdTimers = {};
     var _savedInputs = {};  // zone-id → saved minutes value
 
-    function fmtTime(s) {
-      return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-    }
-
-    // Save duration input values before the poll replaces the DOM
+    // Preserve user-typed duration values across HTMX polls
     document.addEventListener('htmx:beforeSwap', function(e) {
       if (e.detail.target && e.detail.target.id === 'zones') {
         document.querySelectorAll('[data-zone-id]').forEach(function(card) {
@@ -35,41 +30,15 @@
       }
     });
 
-    function syncCountdowns() {
-      // Clear ALL existing timers before restarting — prevents stale intervals
-      // for zones that left the DOM or turned off between polls
-      Object.keys(_cdTimers).forEach(function(zid) {
-        clearInterval(_cdTimers[zid]); delete _cdTimers[zid];
-      });
-
-      document.querySelectorAll('[data-zone-id]').forEach(function(card) {
-        var zid = card.dataset.zoneId;
-        var rem = parseInt(card.dataset.remaining, 10) || 0;
-        var el = card.querySelector('.remaining');
-
-        // Restore saved input value if present
-        var inp = card.querySelector('input[name="minutes"]');
-        if (inp && _savedInputs[zid] !== undefined) inp.value = _savedInputs[zid];
-
-        // No element or nothing remaining — nothing to count down
-        if (!el || rem <= 0) return;
-
-        el.textContent = fmtTime(rem);
-        _cdTimers[zid] = setInterval(function() {
-          rem--;
-          if (rem <= 0) {
-            clearInterval(_cdTimers[zid]); delete _cdTimers[zid];
-            el.remove();
-          } else {
-            el.textContent = fmtTime(rem);
-          }
-        }, 1000);
-      });
-    }
-
-    document.addEventListener('DOMContentLoaded', syncCountdowns);
     document.addEventListener('htmx:afterSwap', function(e) {
-      if (e.detail.target && e.detail.target.id === 'zones') syncCountdowns();
+      if (e.detail.target && e.detail.target.id === 'zones') {
+        document.querySelectorAll('[data-zone-id]').forEach(function(card) {
+          var inp = card.querySelector('input[name="minutes"]');
+          if (inp && _savedInputs[card.dataset.zoneId] !== undefined) {
+            inp.value = _savedInputs[card.dataset.zoneId];
+          }
+        });
+      }
     });
   </script>
 </body>

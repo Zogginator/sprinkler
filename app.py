@@ -75,11 +75,10 @@ def dashboard():
 
 @app.get("/partial/zones")
 def partial_zones():
-    remaining_by_id = {}
-    for run in app_runtime.sprinkler_runs:
-        sid = run.sprinkler.id
-        if getattr(run, "_active", False) and sid not in remaining_by_id:
-            remaining_by_id[sid] = max(0, int(run.remaining_time))
+    remaining_by_id = {
+        zid: app_runtime.remaining(zid)
+        for zid in app_runtime.SPRINKLER_BY_ID
+    }
     app_runtime.logger.debug("partial_zones remaining_by_id=%r", remaining_by_id)
 
     any_zone_on = any(sp.state == 1 for sp in app_runtime.SPRINKLER_BY_ID.values())
@@ -122,9 +121,7 @@ def zone_on(zid: int):
     if app_runtime.current_program and zid != app_runtime._current_program_zone_id():
         app_runtime.abort_current_program()
 
-    run = sprinkler.turn_on(seconds)
-    if run is not None and hasattr(run, 'sprinkler'):
-        app_runtime.register_run(run)
+    sprinkler.turn_on(seconds)
 
     if request.headers.get("HX-Request"):
         return partial_zones()
@@ -150,9 +147,6 @@ def zone_off(zid: int):
     if sprinkler is None:
         abort(404)
     sprinkler.turn_off()
-    for run in list(app_runtime.sprinkler_runs):
-        if run.sprinkler.id == zid and getattr(run, "_active", False):
-            run.stop()
     if request.headers.get("HX-Request"):
         return partial_zones()
     return redirect(url_for("dashboard"))
@@ -172,18 +166,13 @@ def api_zones():
     #         "remaining": st.remaining
     #     })
     for sp in app_runtime.SPRINKLER_BY_ID.values():
-        active_run = next(
-            (r for r in app_runtime.sprinkler_runs
-             if r.sprinkler.id == sp.id and getattr(r, "_active", False)),
-            None,
-        )
         out.append(
             {
                 "id": sp.id,
                 "name": sp.name,
                 "channel": sp.channel,
                 "on": sp.state == 1,
-                "remaining": sp.remaining_time(active_run),
+                "remaining": app_runtime.remaining(sp.id),
             }
         )
     return jsonify(out)

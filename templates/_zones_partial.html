@@ -25,8 +25,7 @@
     {% set rem = remaining_by_id.get(z.id, 0) %}
     {% set is_on = sp.state == 1 %}
     <div class="zone-card {{ 'zone-active' if is_on else '' }}"
-         data-zone-id="{{ z.id }}"
-         data-remaining="{{ rem }}">
+         data-zone-id="{{ z.id }}">
 
       <div class="zone-name">
         {{ z.name }}
@@ -42,7 +41,7 @@
         <span class="status-label {{ 'on' if is_on else 'off' }}">{{ 'BE' if is_on else 'KI' }}</span>
       </div>
 
-      {% if is_on and rem > 0 %}<div class="remaining"></div>{% endif %}
+      {% if is_on and rem > 0 %}<div class="remaining">{{ rem // 60 }}:{{ '%02d' % (rem % 60) }}</div>{% endif %}
 
       <div class="zone-actions">
         <form method="post" action="/zones/{{ z.id }}/on"

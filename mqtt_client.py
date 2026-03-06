@@ -42,6 +42,9 @@ class OBKMqtt:
             self.client.username_pw_set(username, password)
 
         self._thread = None
+        # Build topic regex from state_sub: "prefix/+/get" → "^prefix/(\d+)/get$"
+        _prefix = state_sub.rsplit("/+/", 1)[0]
+        self._topic_re = re.compile(rf"^{re.escape(_prefix)}/(\d+)/get$")
 
     def start(self):
         if self.dry_run:
@@ -66,7 +69,7 @@ class OBKMqtt:
         try:
             payload = msg.payload.decode("utf-8").strip()
             val = 1 if payload in ("1", "ON", "on", "true", "True") else 0
-            m = re.match(r"^sprinkler/(\d+)/get$", msg.topic)
+            m = self._topic_re.match(msg.topic)
             if m:
                 ch = int(m.group(1))
                 if self.on_state_cb:

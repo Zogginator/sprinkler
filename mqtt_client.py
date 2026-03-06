@@ -19,7 +19,7 @@ class OBKMqtt:
         qos,
         set_tmpl,
         state_sub,
-        # on_state_cb,
+        on_state_cb=None,
         dry_run=False,
         logger=None,
     ):
@@ -29,7 +29,7 @@ class OBKMqtt:
         self.set_tmpl = set_tmpl  # pl.: sprinkler/{channel}/set
         self.get_tmpl = set_tmpl.replace("/set", "/get")  # pl.: sprinkler/{channel}/get
         self.state_sub = state_sub  # pl.: sprinkler/+/get
-        # self.on_state_cb = on_state_cb  # callback(channel:int, value:int)
+        self.on_state_cb = on_state_cb  # callback(channel:int, value:int)
         self.dry_run = dry_run
 
         self.logger = logger or logging.getLogger(__name__)
@@ -46,6 +46,7 @@ class OBKMqtt:
     def start(self):
         if self.dry_run:
             self.logger.info("[DRY RUN] MQTT client not started — no broker connection will be made")
+            self.logger.info("[DRY RUN] would subscribe to %s", self.state_sub)
             return
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
@@ -68,7 +69,8 @@ class OBKMqtt:
             m = re.match(r"^sprinkler/(\d+)/get$", msg.topic)
             if m:
                 ch = int(m.group(1))
-                # self.on_state_cb(ch, val)
+                if self.on_state_cb:
+                    self.on_state_cb(ch, val)
         except Exception as e:
             self.logger.warning(f"state parse error: {e}")
 

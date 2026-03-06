@@ -208,4 +208,8 @@ if __name__ == "__main__":
     
     api_thread.start()
     sched.scheduler.start()
-
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        sched.scheduler.shutdown()

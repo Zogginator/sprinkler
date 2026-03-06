@@ -8,7 +8,6 @@ TZ = ZoneInfo("Europe/Budapest")   # YAML-ból kéne átvennie
 from classes.Program import program_constructor_from_db
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
 
 
@@ -37,9 +36,8 @@ class Scheduler:
         self.logger = logger or logging.getLogger(__name__)
 
 
-        jobstores = {'default': SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')}
         job_defaults = {'coalesce': False, 'max_instances': 10}
-        self.scheduler = BackgroundScheduler(jobstores=jobstores, job_defaults=job_defaults, timezone=TZ)  # Create background scheduler
+        self.scheduler = BackgroundScheduler(job_defaults=job_defaults, timezone=TZ)  # Create background scheduler
 
     def _extract_program_id(self, day_opt) -> str:
 

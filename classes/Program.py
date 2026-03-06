@@ -42,14 +42,14 @@ class Program:
         # Return the list of SprinklerRun objects
         return runs
     
-    def run_sequentially(self, delay_seconds=2): # TODO manage delay-setting
-        runs = self.get_runs()   
+    def run_sequentially(self, delay_seconds=2, on_run_start=None):
+        runs = self.get_runs()
         for r in runs:
-            
             last_len = 0
-            # r.done.wait()           # wait until this run finishes.replace below with this if printing progress not needed
             try:
                 r.run()
+                if on_run_start:
+                    on_run_start(r)
                 while not r.done.wait(timeout=1):
                     rem = max(0, int(getattr(r, "remaining_time", 0)))
                     msg = f"Running {r.sprinkler.name}: {rem:02d}s remaining"

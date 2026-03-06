@@ -124,41 +124,14 @@ main {
   margin-top: auto;
 }
 
-/* ── BE toggle (details/summary) ── */
-details.be-toggle { width: 100%; }
-details.be-toggle summary { list-style: none; cursor: pointer; }
-details.be-toggle summary::-webkit-details-marker { display: none; }
-details.be-toggle.be-disabled {
-  pointer-events: none;
-  opacity: .35;
-}
-
-.btn-be-summary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: .6rem 1rem;
-  background: #dcfce7;
-  color: #16a34a;
-  border-radius: 9px;
-  font-weight: 700;
-  font-size: .9rem;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  transition: background .15s;
-}
-details.be-toggle[open] .btn-be-summary,
-.btn-be-summary:hover { background: #bbf7d0; }
-
-.be-form {
+/* ── BE row (always visible) ── */
+.be-row {
   display: flex;
   gap: .5rem;
-  margin-top: .5rem;
   align-items: center;
+  margin-bottom: .5rem;
 }
-.be-form input[type="number"] {
+.be-row input[type="number"] {
   flex: 1;
   min-width: 0;
   padding: .55rem .65rem;
@@ -167,13 +140,14 @@ details.be-toggle[open] .btn-be-summary,
   font-size: .9rem;
   background: #fff;
 }
-.be-form input[type="number"]:focus {
+.be-row input[type="number"]:focus {
   outline: none;
   border-color: #22c55e;
   box-shadow: 0 0 0 3px rgba(34,197,94,.15);
 }
-.be-form .unit { color: #6b7280; font-size: .8rem; white-space: nowrap; }
-.btn-confirm {
+.be-row input[type="number"]:disabled { opacity: .4; }
+.be-row .unit { color: #6b7280; font-size: .8rem; white-space: nowrap; }
+.btn-on {
   background: #16a34a;
   color: #fff;
   border: none;
@@ -185,7 +159,11 @@ details.be-toggle[open] .btn-be-summary,
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
 }
-.btn-confirm:hover { background: #15803d; }
+.btn-on:hover:not(:disabled) { background: #15803d; }
+.btn-on:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Utility ── */
+.hidden { display: none; }
 
 /* ── KI button ── */
 .btn-off {

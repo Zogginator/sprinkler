@@ -1,4 +1,5 @@
 import logging
+from threading import Thread
 from mqtt_client import OBKMqtt
 from classes.Sprinkler import Sprinkler, RainSensor
 
@@ -6,6 +7,19 @@ mqttc: OBKMqtt | None = None  # ide kerül az OBKMqtt példány induláskor
 logger = logging.getLogger("sprinkler")  # központi logger
 SPRINKLER_BY_ID: dict[int, Sprinkler] = {}
 DRY_RUN: bool = False
+sprinkler_runs: list = []  # all active SprinklerRun objects (manual + program-started)
+
+
+def register_run(run) -> None:
+    """Append run to sprinkler_runs and start a daemon that removes it when done."""
+    sprinkler_runs.append(run)
+    def _cleanup(r):
+        r.done.wait()
+        try:
+            sprinkler_runs.remove(r)
+        except ValueError:
+            pass
+    Thread(target=_cleanup, args=(run,), daemon=True).start()
 
 def init_runtime(conf):
     global mqttc, SPRINKLER_BY_ID, DRY_RUN

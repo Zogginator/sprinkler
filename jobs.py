@@ -17,7 +17,7 @@ def start_program_by_id(program_id: int | str,
         logger.debug("start_program_by_id_job: steps=%r", steps)
         p = Program(program_id, name or f"Program {program_id}", steps, spr_by_id, logger=logger)
     try:
-        p.run_sequentially()
+        p.run_sequentially(on_run_start=app_runtime.register_run)
     finally:
         p.cleanup()
     

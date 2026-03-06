@@ -17,5 +17,36 @@
   <main>
     {% block content %}{% endblock %}
   </main>
+  <script>
+    var _cdTimers = {};
+    function fmtTime(s) {
+      return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }
+    function syncCountdowns() {
+      document.querySelectorAll('[data-zone-id]').forEach(function(card) {
+        var zid = card.dataset.zoneId;
+        var rem = parseInt(card.dataset.remaining, 10) || 0;
+        var el = card.querySelector('.remaining');
+        if (_cdTimers[zid]) { clearInterval(_cdTimers[zid]); delete _cdTimers[zid]; }
+        if (!el) return;
+        if (rem <= 0) { el.classList.add('hidden'); el.textContent = ''; return; }
+        el.classList.remove('hidden');
+        el.textContent = fmtTime(rem);
+        _cdTimers[zid] = setInterval(function() {
+          rem--;
+          if (rem <= 0) {
+            clearInterval(_cdTimers[zid]); delete _cdTimers[zid];
+            el.classList.add('hidden'); el.textContent = '';
+          } else {
+            el.textContent = fmtTime(rem);
+          }
+        }, 1000);
+      });
+    }
+    document.addEventListener('DOMContentLoaded', syncCountdowns);
+    document.addEventListener('htmx:afterSwap', function(e) {
+      if (e.detail.target && e.detail.target.id === 'zones') syncCountdowns();
+    });
+  </script>
 </body>
 </html>

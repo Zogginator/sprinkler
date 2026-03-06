@@ -8,7 +8,9 @@
     {% set sp = sprinklers[z.id] %}
     {% set rem = remaining_by_id.get(z.id, 0) %}
     {% set is_on = sp.state == 1 %}
-    <div class="zone-card {{ 'zone-active' if is_on else '' }}">
+    <div class="zone-card {{ 'zone-active' if is_on else '' }}"
+         data-zone-id="{{ z.id }}"
+         data-remaining="{{ rem }}">
 
       <div class="zone-name">{{ z.name }}</div>
 
@@ -17,27 +19,31 @@
         <span class="status-label {{ 'on' if is_on else 'off' }}">{{ 'BE' if is_on else 'KI' }}</span>
       </div>
 
-      {% if is_on and rem > 0 %}
-      <div class="remaining">{{ rem // 60 }}:{{ '%02d' % (rem % 60) }}</div>
-      {% endif %}
+      <div class="remaining{{ '' if (is_on and rem > 0) else ' hidden' }}"></div>
 
       <div class="zone-actions">
-        <details class="be-toggle {{ 'be-disabled' if is_on else '' }}">
-          <summary><span class="btn-be-summary">BE</span></summary>
-          <form method="post" action="/zones/{{ z.id }}/on" class="be-form">
+        <form method="post" action="/zones/{{ z.id }}/on"
+              hx-post="/zones/{{ z.id }}/on"
+              hx-target="#zones"
+              hx-swap="outerHTML">
+          <div class="be-row">
             <input
               type="number"
               name="minutes"
               min="1"
               max="{{ failsafe_max // 60 }}"
               value="10"
+              {% if is_on %}disabled{% endif %}
               aria-label="{{ z.name }} bekapcsolás percben">
             <span class="unit">perc</span>
-            <button type="submit" class="btn-confirm">Indítás</button>
-          </form>
-        </details>
+            <button type="submit" class="btn-on" {% if is_on %}disabled{% endif %}>BE</button>
+          </div>
+        </form>
 
-        <form method="post" action="/zones/{{ z.id }}/off">
+        <form method="post" action="/zones/{{ z.id }}/off"
+              hx-post="/zones/{{ z.id }}/off"
+              hx-target="#zones"
+              hx-swap="outerHTML">
           <button type="submit" class="btn-off" {% if not is_on %}disabled{% endif %}>KI</button>
         </form>
       </div>

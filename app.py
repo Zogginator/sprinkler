@@ -1,18 +1,14 @@
 import logging
 import os
-from threading import Thread, Timer
+from threading import Thread
 import time
-from datetime import datetime
 
 import yaml
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
-import app_runtime 
+import app_runtime
 from classes.Program import Program, program_constructor
 from classes.Scheduler import DayOption, Scheduler, StartTime
-from classes.Sprinkler import Sprinkler, SprinklerRun, RainSensor
-from mqtt_client import OBKMqtt  # a módosított, channel/set-get sémát használó kliens
-from state import GlobalState
 
 # ----------------------------
 # Config
@@ -34,8 +30,6 @@ app_runtime.init_runtime(CONF)  #mqtttc indítás, és SPRINKLER_BY_ID inicializ
 logging.basicConfig(level=logging.DEBUG)
 app_runtime.logger = logging.getLogger(__name__)
                 
-
-sprinkler_runs = []
 
 program1 = program_constructor('1', 'Temporary Program', [(3, 10), (2,10)])     # <classes.Program.Program object>
 test2 = DayOption("Everyday Evening", StartTime(21, 14), program_id='test', steps=[(3,600), (2, 600), (1,600)], day=None)    # <classes.Scheduler.DayOption object>
@@ -75,7 +69,7 @@ def dashboard():
 @app.get("/partial/zones")
 def partial_zones():
     remaining_by_id = {}
-    for run in sprinkler_runs:
+    for run in app_runtime.sprinkler_runs:
         sid = run.sprinkler.id
         if getattr(run, "_active", False) and sid not in remaining_by_id:
             remaining_by_id[sid] = max(0, int(run.remaining_time))
@@ -98,20 +92,6 @@ def zone_on(zid: int):
         seconds = int(request.form.get("seconds") or request.args.get("seconds") or 60)
     if seconds > FAILSAFE_MAX:
         seconds = FAILSAFE_MAX
-    # z = ZONES_BY_ID.get(zid) or abort(404)
-
-    # # 1) MQTT publish: sprinkler/<ch>/set  "1"
-    # mqttc.set_channel(z["channel"], 1)
-
-    # # 2) helyi állapot beállítás + visszaszámláló
-    # G.set_on(zid, True, remaining=seconds)
-
-    # # 3) időzített kikapcsolás (egyszerű Timer)
-    # def _off():
-    #     mqttc.set_channel(z["channel"], 0)
-    #     G.set_on(zid, False, remaining=None)
-
-    # Timer(seconds, _off).start()
 
     sprinkler = app_runtime.SPRINKLER_BY_ID.get(zid)
     if sprinkler is None:
@@ -119,15 +99,10 @@ def zone_on(zid: int):
 
     run = sprinkler.turn_on(seconds)
     if run is not None and hasattr(run, 'sprinkler'):
-        sprinkler_runs.append(run)
-        def _cleanup(r):
-            r.done.wait()
-            try:
-                sprinkler_runs.remove(r)
-            except ValueError:
-                pass
-        Thread(target=_cleanup, args=(run,), daemon=True).start()
+        app_runtime.register_run(run)
 
+    if request.headers.get("HX-Request"):
+        return partial_zones()
     return redirect(url_for("dashboard"))
 
 
@@ -146,14 +121,12 @@ def adhoc_run():
 
 @app.post("/zones/<int:zid>/off")
 def zone_off(zid: int):
-    # z = ZONES_BY_ID.get(zid) or abort(404)
-    # mqttc.set_channel(z["channel"], 0)
-    # G.set_on(zid, False, remaining=None)
-
     sprinkler = app_runtime.SPRINKLER_BY_ID.get(zid)
     if sprinkler is None:
         abort(404)
     sprinkler.turn_off()
+    if request.headers.get("HX-Request"):
+        return partial_zones()
     return redirect(url_for("dashboard"))
 
 

@@ -70,6 +70,42 @@ main {
   .zone-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
+/* ── Program status bar ── */
+.program-status {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: .65rem 1rem;
+  margin-bottom: .75rem;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.program-status-title {
+  font-size: .875rem;
+  font-weight: 600;
+  color: #15803d;
+}
+.program-dots { display: flex; gap: .3rem; font-size: 1rem; line-height: 1; }
+.dot-done   { color: #86efac; }
+.dot-active { color: #16a34a; }
+.dot-pending { color: #d1d5db; }
+
+/* ── Zone source label ── */
+.zone-source {
+  display: inline-block;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .1rem .4rem;
+  border-radius: 5px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  margin-left: .4rem;
+}
+.zone-source.program { background: #dcfce7; color: #15803d; }
+.zone-source.manual  { background: #e0f2fe; color: #0369a1; }
+
 /* ── Zone card ── */
 .zone-card {
   background: #fff;

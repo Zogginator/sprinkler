@@ -7,7 +7,9 @@ mqttc: OBKMqtt | None = None  # ide kerül az OBKMqtt példány induláskor
 logger = logging.getLogger("sprinkler")  # központi logger
 SPRINKLER_BY_ID: dict[int, Sprinkler] = {}
 DRY_RUN: bool = False
+FAILSAFE_MAX: int = 600
 sprinkler_runs: list = []  # all active SprinklerRun objects (manual + program-started)
+current_program: dict | None = None  # {"name", "steps", "current_step", "total_steps"}
 
 
 def register_run(run) -> None:
@@ -21,9 +23,32 @@ def register_run(run) -> None:
             pass
     Thread(target=_cleanup, args=(run,), daemon=True).start()
 
+
+def set_current_program(name: str, steps: list) -> None:
+    global current_program
+    current_program = {
+        "name": name,
+        "steps": list(steps),
+        "current_step": 0,
+        "total_steps": len(steps),
+    }
+
+
+def advance_current_program_step() -> None:
+    global current_program
+    if current_program is not None:
+        current_program["current_step"] += 1
+
+
+def clear_current_program() -> None:
+    global current_program
+    current_program = None
+
+
 def init_runtime(conf):
-    global mqttc, SPRINKLER_BY_ID, DRY_RUN
+    global mqttc, SPRINKLER_BY_ID, DRY_RUN, FAILSAFE_MAX
     DRY_RUN = bool(conf.get("dry_run", False))
+    FAILSAFE_MAX = int(conf.get("failsafe", {}).get("max_seconds", 600))
 
     SPRINKLER_BY_ID = {
         z["id"]: Sprinkler(
@@ -41,6 +66,7 @@ def init_runtime(conf):
     _sprinkler_by_channel = {sp.channel: sp for sp in SPRINKLER_BY_ID.values()}
 
     def _on_state(channel: int, value: int):
+        from classes.Sprinkler import SprinklerRun
         sp = _sprinkler_by_channel.get(channel)
         if sp is None:
             logger.warning("Received state for unknown channel %d", channel)
@@ -55,6 +81,20 @@ def init_runtime(conf):
                         "Hardware OFF on channel %d — terminating active run", channel
                     )
                     run.stop()
+        else:
+            # Hardware reported ON — create a failsafe run if none is active
+            has_active_run = any(
+                r.sprinkler is sp and getattr(r, "_active", False)
+                for r in sprinkler_runs
+            )
+            if not has_active_run:
+                logger.info(
+                    "External ON on channel %d — creating failsafe SprinklerRun (%ds)",
+                    channel, FAILSAFE_MAX,
+                )
+                run = SprinklerRun(run_time=FAILSAFE_MAX, sprinkler=sp, logger=logger)
+                run.run()
+                register_run(run)
 
     mqttc = OBKMqtt(
         host=conf["mqtt"]["host"],
@@ -73,4 +113,4 @@ def init_runtime(conf):
 
     mqttc.start()
 
-    rainsensor = RainSensor (mqttc = mqttc, channel = conf["rainsensor"]["channel"])
+    rainsensor = RainSensor(mqttc=mqttc, channel=conf["rainsensor"]["channel"])

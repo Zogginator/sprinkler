@@ -73,6 +73,16 @@ def partial_zones():
         sid = run.sprinkler.id
         if getattr(run, "_active", False) and sid not in remaining_by_id:
             remaining_by_id[sid] = max(0, int(run.remaining_time))
+
+    any_zone_on = any(sp.state == 1 for sp in app_runtime.SPRINKLER_BY_ID.values())
+
+    cp = app_runtime.current_program
+    program_zone_id = None
+    if cp and cp["current_step"] > 0:
+        idx = cp["current_step"] - 1
+        if 0 <= idx < len(cp["steps"]):
+            program_zone_id = cp["steps"][idx][0]
+
     return render_template(
         "_zones_partial.html",
         zones=ZONES,
@@ -80,6 +90,9 @@ def partial_zones():
         remaining_by_id=remaining_by_id,
         poll_sec=POLL_SEC,
         failsafe_max=FAILSAFE_MAX,
+        any_zone_on=any_zone_on,
+        current_program=cp,
+        program_zone_id=program_zone_id,
     )
 
 

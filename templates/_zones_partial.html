@@ -3,6 +3,22 @@
   hx-get="{{ url_for('partial_zones') }}"
   hx-trigger="every {{ poll_sec }}s"
   hx-swap="outerHTML">
+
+  {% if current_program %}
+  <div class="program-status">
+    <span class="program-status-title">
+      &#127807; Program futása: &ldquo;{{ current_program.name }}&rdquo; &mdash; {{ current_program.current_step }}/{{ current_program.total_steps }}. zóna
+    </span>
+    <div class="program-dots">
+      {% for i in range(1, current_program.total_steps + 1) %}
+      <span class="program-dot {{ 'dot-done' if i < current_program.current_step else ('dot-active' if i == current_program.current_step else 'dot-pending') }}">
+        {{ '&#9679;' if i <= current_program.current_step else '&#9675;' }}
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="zone-grid">
     {% for z in zones %}
     {% set sp = sprinklers[z.id] %}
@@ -12,7 +28,14 @@
          data-zone-id="{{ z.id }}"
          data-remaining="{{ rem }}">
 
-      <div class="zone-name">{{ z.name }}</div>
+      <div class="zone-name">
+        {{ z.name }}
+        {% if is_on %}
+        <span class="zone-source {{ 'program' if z.id == program_zone_id else 'manual' }}">
+          {{ 'Program' if z.id == program_zone_id else 'Manuális' }}
+        </span>
+        {% endif %}
+      </div>
 
       <div class="zone-status">
         <span class="status-dot {{ 'on' if is_on else 'off' }}"></span>
@@ -52,3 +75,12 @@
     {% endfor %}
   </div>
 </div>
+
+{# OOB: keep the ad-hoc Run button in sync with zone state every poll #}
+<button id="btn-adhoc-run"
+        hx-swap-oob="true"
+        type="submit"
+        class="btn-run"
+        {% if any_zone_on %}disabled{% endif %}>
+  Futtatás
+</button>

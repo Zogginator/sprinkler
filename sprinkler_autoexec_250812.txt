@@ -1,0 +1,20 @@
+// Button 1 pressed
+addEventHandler OnChannelChange 1 if $CH1==1 then backlog power46 1; power54 0; power35 0; power37 0
+
+// Button 2 pressed
+addEventHandler OnChannelChange 2 if $CH2==1 then backlog power46 0; power54 1; power35 0; power37 0
+
+// Button 3 pressed
+addEventHandler OnChannelChange 3 if $CH3==1 then backlog power46 0; power54 0; power35 1; power37 0
+
+// Button 4 pressed — turn all off immediately and cancel timers
+addEventHandler OnChannelChange 4 if $CH4==1 then backlog power46 0; power54 0; power35 0; power37 0; cancelRepeatingEvent 11; cancelRepeatingEvent 12; cancelRepeatingEvent 13
+
+//Relay 1 switched on - initiate automatic switch off
+addEventHandler OnChannelChange 46 if $CH46==1 then backlog cancelRepeatingEvent 11; addRepeatingEventID 60 1 11 BACKLOG power46 0
+
+//Relay 2 switched on - initiate automatic switch off
+addEventHandler OnChannelChange 54 if $CH54==1 then backlog cancelRepeatingEvent 12; addRepeatingEventID 60 1 12 BACKLOG power54 0
+
+//Relay 3 switched on - initiate automatic switch off
+addEventHandler OnChannelChange 35 if $CH35==1 then backlog cancelRepeatingEvent 13; addRepeatingEventID 60 1 13 BACKLOG power35 0

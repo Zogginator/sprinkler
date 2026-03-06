@@ -11,9 +11,9 @@ class RainSensor:
         self.mqttc= mqttc
         self.channel=channel
 
-    def get_rain_status():
-        try:
-            self.mqttc.get_channel
+    def get_rain_status(self):
+        # TODO: implement via MQTT
+        return False
 
 
 class Sprinkler:

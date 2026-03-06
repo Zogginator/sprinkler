@@ -1,8 +1,8 @@
 mqtt:
-  host: 192.168.1.173
+  host: 192.168.x.x          # IP of your Mosquitto broker
   port: 1883
-  username: "homeassistant"
-  password: "nadap"
+  username: "your_username"
+  password: "your_password"
   qos: 1
 
   # Sprinkler channel-topic séma
@@ -13,17 +13,17 @@ mqtt:
     state:  "sprinkler/+/get"           # feliratkozás: "0" vagy "1" (wildcard)
 
 device:
-  name: "OpenBK7231N_08D6ACEA"
+  name: "OpenBK7231N_XXXXXXXX"
 
 zones:
   - id: 1
-    name: "Előkert"
+    name: "Zone 1"
     channel: 31
   - id: 2
-    name: "Oldalkert"
+    name: "Zone 2"
     channel: 32
   - id: 3
-    name: "Hátsókert"
+    name: "Zone 3"
     channel: 33
 
 rainsensor:

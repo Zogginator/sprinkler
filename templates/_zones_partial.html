@@ -12,7 +12,7 @@
     <div class="program-dots">
       {% for i in range(1, current_program.total_steps + 1) %}
       <span class="program-dot {{ 'dot-done' if i < current_program.current_step else ('dot-active' if i == current_program.current_step else 'dot-pending') }}">
-        {{ '&#9679;' if i <= current_program.current_step else '&#9675;' }}
+        {{ '●' if i <= current_program.current_step else '○' }}
       </span>
       {% endfor %}
     </div>

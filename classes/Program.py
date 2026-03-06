@@ -42,9 +42,11 @@ class Program:
         # Return the list of SprinklerRun objects
         return runs
     
-    def run_sequentially(self, delay_seconds=2, on_run_start=None):
+    def run_sequentially(self, delay_seconds=2, on_run_start=None, stop_event=None):
         runs = self.get_runs()
         for r in runs:
+            if stop_event and stop_event.is_set():
+                break
             last_len = 0
             try:
                 r.run()

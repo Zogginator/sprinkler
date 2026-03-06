@@ -110,6 +110,10 @@ def zone_on(zid: int):
     if sprinkler is None:
         abort(404)
 
+    # If a program is running and this zone is not its current step, abort the program
+    if app_runtime.current_program and zid != app_runtime._current_program_zone_id():
+        app_runtime.abort_current_program()
+
     run = sprinkler.turn_on(seconds)
     if run is not None and hasattr(run, 'sprinkler'):
         app_runtime.register_run(run)

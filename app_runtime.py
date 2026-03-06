@@ -1,5 +1,5 @@
 import logging
-from threading import Thread
+from threading import Thread, Event
 from mqtt_client import OBKMqtt
 from classes.Sprinkler import Sprinkler, RainSensor
 
@@ -10,6 +10,7 @@ DRY_RUN: bool = False
 FAILSAFE_MAX: int = 600
 sprinkler_runs: list = []  # all active SprinklerRun objects (manual + program-started)
 current_program: dict | None = None  # {"name", "steps", "current_step", "total_steps"}
+_program_stop_event: Event | None = None  # signals run_sequentially to stop iterating
 
 
 def register_run(run) -> None:
@@ -24,8 +25,9 @@ def register_run(run) -> None:
     Thread(target=_cleanup, args=(run,), daemon=True).start()
 
 
-def set_current_program(name: str, steps: list) -> None:
-    global current_program
+def set_current_program(name: str, steps: list, stop_event: Event) -> None:
+    global current_program, _program_stop_event
+    _program_stop_event = stop_event
     current_program = {
         "name": name,
         "steps": list(steps),
@@ -40,9 +42,32 @@ def advance_current_program_step() -> None:
         current_program["current_step"] += 1
 
 
+def abort_current_program() -> None:
+    """Stop a running program immediately: signal the loop, stop active runs, clear state."""
+    global _program_stop_event
+    if _program_stop_event is not None:
+        _program_stop_event.set()
+    if current_program:
+        program_zone_ids = {step[0] for step in current_program["steps"]}
+        for run in list(sprinkler_runs):
+            if getattr(run, "_active", False) and run.sprinkler.id in program_zone_ids:
+                run.stop()
+    clear_current_program()
+
+
 def clear_current_program() -> None:
-    global current_program
+    global current_program, _program_stop_event
     current_program = None
+    _program_stop_event = None
+
+
+def _current_program_zone_id() -> int | None:
+    """Return the zone id currently active in the running program, or None."""
+    if current_program and current_program["current_step"] > 0:
+        idx = current_program["current_step"] - 1
+        if 0 <= idx < len(current_program["steps"]):
+            return current_program["steps"][idx][0]
+    return None
 
 
 def init_runtime(conf):
@@ -82,7 +107,15 @@ def init_runtime(conf):
                     )
                     run.stop()
         else:
-            # Hardware reported ON — create a failsafe run if none is active
+            # Hardware reported ON for a different zone than the current program step
+            # → abort the program so it doesn't fight the externally triggered zone
+            if current_program and sp.id != _current_program_zone_id():
+                logger.info(
+                    "External ON on channel %d conflicts with running program — aborting program",
+                    channel,
+                )
+                abort_current_program()
+            # Create a failsafe run if no active run exists for this sprinkler
             has_active_run = any(
                 r.sprinkler is sp and getattr(r, "_active", False)
                 for r in sprinkler_runs

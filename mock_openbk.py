@@ -23,13 +23,14 @@ import time
 import paho.mqtt.client as mqtt
 
 # ---------------------------------------------------------------------------
-# Config
+# Config (set dynamically in main() from zones.yaml)
 # ---------------------------------------------------------------------------
-CHANNELS = [31, 32, 33]          # simulated relay channels
-FAILSAFE_SECONDS = 600            # hardware failsafe timeout
-SET_TOPIC = "sprinkler/{channel}/set"
-GET_TOPIC = "sprinkler/{channel}/get"
-SUBSCRIBE_WILDCARD = "sprinkler/+/set"
+CHANNELS: list[int] = []
+FAILSAFE_SECONDS: int = 600
+SET_TOPIC: str = ""
+GET_TOPIC: str = ""
+SUBSCRIBE_WILDCARD: str = ""
+_PREFIX: str = ""
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,7 +42,7 @@ log = logging.getLogger("mock_openbk")
 # ---------------------------------------------------------------------------
 # State
 # ---------------------------------------------------------------------------
-_state: dict[int, int] = {ch: 0 for ch in CHANNELS}   # channel → 0/1
+_state: dict[int, int] = {}   # channel → 0/1  (populated after config load)
 _timers: dict[int, threading.Timer] = {}               # channel → failsafe Timer
 _lock = threading.Lock()
 _client: mqtt.Client | None = None
@@ -114,7 +115,7 @@ def _on_connect(client, userdata, flags, reason_code, properties=None):
 
 
 def _on_message(client, userdata, msg):
-    m = re.match(r"^sprinkler/(\d+)/set$", msg.topic)
+    m = re.match(rf"^{re.escape(_PREFIX)}/(\d+)/set$", msg.topic)
     if not m:
         return
     channel = int(m.group(1))
@@ -134,7 +135,7 @@ def _on_message(client, userdata, msg):
 # Entry point
 # ---------------------------------------------------------------------------
 def main():
-    global _client
+    global _client, CHANNELS, FAILSAFE_SECONDS, SET_TOPIC, GET_TOPIC, SUBSCRIBE_WILDCARD, _PREFIX, _state
 
     parser = argparse.ArgumentParser(description="Mock OpenBK7231N relay simulator")
     parser.add_argument("--host", default=None)
@@ -154,8 +155,19 @@ def main():
         port = int(conf["mqtt"]["port"])
         username = conf["mqtt"].get("username") or None
         password = conf["mqtt"].get("password") or None
+        _PREFIX = conf["mqtt"].get("mqtt_topic_prefix", "sprinkler")
+        CHANNELS = [z["channel"] for z in conf.get("zones", [])]
+        FAILSAFE_SECONDS = int(conf.get("failsafe", {}).get("max_seconds", 600))
     except Exception as e:
         log.warning("Could not read zones.yaml (%s), using defaults", e)
+        _PREFIX = "sprinkler"
+        CHANNELS = [31, 32, 33]
+
+    SET_TOPIC = f"{_PREFIX}/{{channel}}/set"
+    GET_TOPIC = f"{_PREFIX}/{{channel}}/get"
+    SUBSCRIBE_WILDCARD = f"{_PREFIX}/+/set"
+    _state = {ch: 0 for ch in CHANNELS}
+    log.info("[MOCK] prefix=%s channels=%s failsafe=%ds", _PREFIX, CHANNELS, FAILSAFE_SECONDS)
 
     # CLI args override yaml
     if args.host:

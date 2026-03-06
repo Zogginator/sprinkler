@@ -17,6 +17,13 @@ CONF_PATH = os.environ.get("ZONES_CONF", "zones.yaml")
 with open(CONF_PATH, "r", encoding="utf-8") as f:
     CONF = yaml.safe_load(f)
 
+_prefix = CONF["mqtt"].get("mqtt_topic_prefix", "sprinkler")
+CONF["mqtt"]["topics"] = {
+    "set":   f"{_prefix}/{{channel}}/set",
+    "get":   f"{_prefix}/{{channel}}/get",
+    "state": f"{_prefix}/+/get",
+}
+
 
 ZONES = CONF["zones"]  # [{'id': 1, 'name': 'Előkert', 'channel': 31}, {'id': 2, 'name': 'Oldalkert', 'channel': 32}, {'id': 3, 'name': 'Hátsókert', 'channel': 33}]
 ZONES_BY_ID = {z["id"]: z for z in ZONES}  # {1: {'id': 1, 'name': 'Előkert', 'channel': 31}, 2: {'id': 2, 'name': 'Oldalkert', 'channel': 32}, 3: {'id': 3, 'name': 'Hátsókert', 'channel': 33}}

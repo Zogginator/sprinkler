@@ -5,12 +5,7 @@ mqtt:
   password: "your_password"
   qos: 1
 
-  # Sprinkler channel-topic séma
-  base_topic: "sprinkler"
-  topics:
-    set:    "sprinkler/{channel}/set"   # publish ide: "1" vagy "0"
-    get:    "sprinkler/{channel}/get"
-    state:  "sprinkler/+/get"           # feliratkozás: "0" vagy "1" (wildcard)
+  mqtt_topic_prefix: "sprinkler"        # prefix for all MQTT topics; change for testing
 
 device:
   name: "OpenBK7231N_XXXXXXXX"

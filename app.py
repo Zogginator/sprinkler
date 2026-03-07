@@ -123,6 +123,28 @@ def _save_conf() -> None:
         yaml.dump(conf_to_save, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
 
 
+def _programs_view() -> list:
+    jobs_by_id = {j.id: j for j in sched.scheduler.get_jobs()}
+    result = []
+    for prog in app_runtime.programs.values():
+        job = jobs_by_id.get(f"program:{prog['id']}")
+        next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M") if job and job.next_run_time else "–"
+        result.append({
+            **prog,
+            "next_run": next_run,
+            "schedule_summary": _schedule_summary(prog),
+            "steps_summary": _steps_summary(prog),
+        })
+    return result
+
+
+def _render_programs_partial():
+    return render_template("_programs_partial.html",
+                           programs=_programs_view(),
+                           zones=ZONES,
+                           failsafe_max=FAILSAFE_MAX)
+
+
 # Load programs from config
 for _p in CONF.get("programs", []):
     app_runtime.programs[_p["id"]] = _p
@@ -137,24 +159,16 @@ app = Flask(__name__)
 
 @app.get("/")
 def dashboard():
-    jobs_by_id = {j.id: j for j in sched.scheduler.get_jobs()}
-    active_programs = []
-    for prog in app_runtime.programs.values():
-        if not prog.get("active"):
-            continue
-        job = jobs_by_id.get(f"program:{prog['id']}")
-        next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M") if job and job.next_run_time else "–"
-        active_programs.append({"name": prog["name"], "next_run": next_run,
-                                 "schedule_summary": _schedule_summary(prog)})
     any_zone_on = any(sp.state == 1 for sp in app_runtime.SPRINKLER_BY_ID.values())
     return render_template(
         "dashboard.html",
         zones=ZONES,
         poll_sec=POLL_SEC,
         dry_run=app_runtime.DRY_RUN,
-        active_programs=active_programs,
         any_zone_on=any_zone_on,
         last_adhoc_steps=app_runtime.last_adhoc_steps,
+        programs=_programs_view(),
+        failsafe_max=FAILSAFE_MAX,
     )
 
 
@@ -320,40 +334,24 @@ def api_programs_run(pid: int):
     return "", 204
 
 
-# ----------------------------
-# Programs — UI
-# ----------------------------
-
-@app.get("/programs")
-def programs_page():
-    jobs_by_id = {j.id: j for j in sched.scheduler.get_jobs()}
-    programs_view = []
-    for prog in app_runtime.programs.values():
-        job = jobs_by_id.get(f"program:{prog['id']}")
-        next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M") if job and job.next_run_time else "–"
-        programs_view.append({
-            **prog,
-            "next_run": next_run,
-            "schedule_summary": _schedule_summary(prog),
-            "steps_summary": _steps_summary(prog),
-        })
-    return render_template("programs.html", programs=programs_view, zones=ZONES,
-                           dry_run=app_runtime.DRY_RUN)
-
-
-@app.get("/programs/new")
-def program_new():
-    return render_template("program_form.html", program=None, zones=ZONES,
-                           failsafe_max=FAILSAFE_MAX, dry_run=app_runtime.DRY_RUN)
-
-
-@app.get("/programs/<int:pid>/edit")
-def program_edit(pid: int):
+@app.post("/api/programs/<int:pid>/toggle")
+def api_programs_toggle(pid: int):
     prog = app_runtime.programs.get(pid)
     if prog is None:
         abort(404)
-    return render_template("program_form.html", program=prog, zones=ZONES,
-                           failsafe_max=FAILSAFE_MAX, dry_run=app_runtime.DRY_RUN)
+    prog["active"] = not prog.get("active", False)
+    _save_conf()
+    _register_job(prog)
+    return _render_programs_partial()
+
+
+# ----------------------------
+# Programs — UI (HTMX-driven, return partial HTML)
+# ----------------------------
+
+@app.get("/partial/programs")
+def partial_programs():
+    return _render_programs_partial()
 
 
 @app.post("/programs/save")
@@ -376,15 +374,12 @@ def program_save():
         },
         "steps": steps,
     }
-    if pid_str:
-        pid = int(pid_str)
-    else:
-        pid = max(app_runtime.programs.keys(), default=0) + 1
+    pid = int(pid_str) if pid_str else max(app_runtime.programs.keys(), default=0) + 1
     prog["id"] = pid
     app_runtime.programs[pid] = prog
     _save_conf()
     _register_job(prog)
-    return redirect(url_for("programs_page"))
+    return _render_programs_partial()
 
 
 @app.post("/programs/<int:pid>/delete")
@@ -397,7 +392,7 @@ def program_delete(pid: int):
         sched.scheduler.remove_job(f"program:{pid}")
     except Exception:
         pass
-    return redirect(url_for("programs_page"))
+    return _render_programs_partial()
 
 
 @app.post("/programs/<int:pid>/run")
@@ -408,7 +403,7 @@ def program_run(pid: int):
     steps = [(s["zone_id"], s["minutes"] * 60) for s in prog.get("steps", []) if s["minutes"] > 0]
     if steps:
         sched.adhoc_program_run(steps=steps, name=prog["name"])
-    return redirect(url_for("programs_page"))
+    return _render_programs_partial()
 
 
 # ----------------------------

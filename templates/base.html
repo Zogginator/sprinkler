@@ -15,7 +15,6 @@
     <h1>Öntöző vezérlés</h1>
     <nav class="page-nav">
       <a href="{{ url_for('dashboard') }}" class="nav-link">Irányítópult</a>
-      <a href="{{ url_for('programs_page') }}" class="nav-link">Programok</a>
     </nav>
   </div>
   <main>
@@ -70,10 +69,12 @@
       }
     });
 
-    // After a zone on/off or adhoc request, force an immediate poll refresh
+    // After a zone on/off, adhoc, or program run — force an immediate zones refresh
     document.body.addEventListener('htmx:afterRequest', function(e) {
-      if (e.detail.pathInfo?.requestPath?.match(/\/zones\/\d+\/(on|off)/) ||
-          e.detail.pathInfo?.requestPath === '/adhoc') {
+      var path = e.detail.pathInfo?.requestPath || '';
+      if (path.match(/\/zones\/\d+\/(on|off)/) ||
+          path === '/adhoc' ||
+          path.match(/\/programs\/\d+\/run/)) {
         htmx.trigger(document.getElementById('zones'), 'refresh');
       }
     });

@@ -1,0 +1,197 @@
+{% macro prog_form(prog, zones, failsafe_max) %}
+<form hx-post="{{ url_for('program_save') }}"
+      hx-target="#programs-section"
+      hx-swap="outerHTML">
+  {% if prog %}
+  <input type="hidden" name="id" value="{{ prog.id }}">
+  {% endif %}
+
+  <div class="form-group">
+    <label class="form-label">Név</label>
+    <input type="text" name="name" class="form-input" required
+           value="{{ prog.name if prog else '' }}" placeholder="Program neve">
+  </div>
+
+  <div class="form-row-checks">
+    <label class="check-label">
+      <input type="checkbox" name="active" value="1"
+             {{ 'checked' if not prog or prog.active }}>
+      Aktív
+    </label>
+    <label class="check-label">
+      <input type="checkbox" name="rain_skip" value="1"
+             {{ 'checked' if prog and prog.rain_skip }}>
+      &#127783; Esőre kihagyás
+    </label>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Ütemezés</label>
+    <select name="schedule_type" class="form-input" onchange="updateScheduleFields(this)">
+      <option value="daily"  {{ 'selected' if not prog or prog.schedule.type == 'daily'  }}>Naponta</option>
+      <option value="weekly" {{ 'selected' if prog and prog.schedule.type == 'weekly' }}>Heti</option>
+      <option value="once"   {{ 'selected' if prog and prog.schedule.type == 'once'   }}>Egyszer</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Időpont</label>
+    <input type="time" name="schedule_time" class="form-input"
+           value="{{ prog.schedule.time if prog else '06:00' }}">
+  </div>
+
+  <div class="form-group field-days"
+       style="{{ '' if prog and prog.schedule.type == 'weekly' else 'display:none' }}">
+    <label class="form-label">Napok</label>
+    <div class="days-row">
+      {% set sel = prog.schedule.days if prog and prog.schedule.type == 'weekly' else [] %}
+      {% for val, lbl in [('mon','H'),('tue','K'),('wed','Sze'),('thu','Cs'),('fri','P'),('sat','Szo'),('sun','V')] %}
+      <div class="day-chip {{ 'day-chip-on' if val in sel }}" onclick="toggleDayChip(this)">
+        <input type="checkbox" name="schedule_days" value="{{ val }}"
+               {{ 'checked' if val in sel }} style="display:none">
+        {{ lbl }}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="form-group field-date"
+       style="{{ '' if prog and prog.schedule.type == 'once' else 'display:none' }}">
+    <label class="form-label">Dátum</label>
+    <input type="date" name="schedule_date" class="form-input"
+           value="{{ prog.schedule.date if prog and prog.schedule.type == 'once' else '' }}">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Zónák (perc, 0 = kihagyás)</label>
+    <div class="adhoc-rows">
+      {% for z in zones %}
+      {% set step = (prog.steps | selectattr('zone_id', 'equalto', z.id) | list | first) if prog else none %}
+      <div class="adhoc-row">
+        <span class="zone-label">{{ z.name }}</span>
+        <input type="number" name="zone_{{ z.id }}_minutes"
+               min="0" max="{{ failsafe_max // 60 }}"
+               value="{{ step.minutes if step else 0 }}">
+        <span class="unit">perc</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn-run" style="width:auto; padding:.6rem 1.4rem;">Mentés</button>
+    {% if prog %}
+    <button type="button" class="btn-cancel" onclick="hideProgramForm({{ prog.id }})">Mégse</button>
+    {% else %}
+    <button type="button" class="btn-cancel" onclick="hideNewProgramForm()">Mégse</button>
+    {% endif %}
+  </div>
+</form>
+{% endmacro %}
+
+<div id="programs-section">
+  <div class="section-header">
+    <p class="section-title">Programok</p>
+    <button class="btn-new" type="button" onclick="showNewProgramForm()">+ Új program</button>
+  </div>
+
+  {# New-program form card (hidden by default) #}
+  <div id="new-prog-form" class="card" style="display:none; margin-bottom:1rem;">
+    {{ prog_form(none, zones, failsafe_max) }}
+  </div>
+
+  {% if programs %}
+  <div class="prog-list">
+    {% for prog in programs %}
+    <div class="card prog-card" id="prog-card-{{ prog.id }}">
+
+      <div class="prog-summary">
+        {# Active toggle #}
+        <label class="toggle-switch" title="{{ 'Aktív' if prog.active else 'Inaktív' }}">
+          <input type="checkbox"
+                 {{ 'checked' if prog.active }}
+                 hx-post="/api/programs/{{ prog.id }}/toggle"
+                 hx-target="#programs-section"
+                 hx-swap="outerHTML"
+                 hx-trigger="change">
+          <span class="toggle-thumb"></span>
+        </label>
+
+        {# Info block #}
+        <div class="prog-info">
+          <div class="prog-name-row">
+            <span class="prog-name">{{ prog.name }}</span>
+            {% if prog.rain_skip %}
+            <span class="badge-rain" title="Esős napon kihagyja">&#127783;</span>
+            {% endif %}
+            <span class="badge-status {{ 'badge-active' if prog.active else 'badge-inactive' }}">
+              {{ 'Aktív' if prog.active else 'Inaktív' }}
+            </span>
+          </div>
+          <div class="prog-schedule">&#128336; {{ prog.schedule_summary }}</div>
+          <div class="prog-steps">{{ prog.steps_summary }}</div>
+          {% if prog.active and prog.next_run != '–' %}
+          <div class="prog-next">Következő: {{ prog.next_run }}</div>
+          {% endif %}
+        </div>
+
+        {# Action buttons #}
+        <div class="prog-card-actions">
+          <button class="btn-prog btn-prog-run"
+                  hx-post="/programs/{{ prog.id }}/run"
+                  hx-target="#programs-section"
+                  hx-swap="outerHTML">Futtatás</button>
+          <button class="btn-prog btn-prog-edit" type="button"
+                  onclick="toggleProgramForm({{ prog.id }})">Szerkesztés</button>
+          <button class="btn-prog btn-prog-delete"
+                  hx-post="/programs/{{ prog.id }}/delete"
+                  hx-target="#programs-section"
+                  hx-swap="outerHTML"
+                  hx-confirm="Biztosan törli: {{ prog.name }}?">Törlés</button>
+        </div>
+      </div>
+
+      {# Inline edit form (hidden by default) #}
+      <div id="prog-form-{{ prog.id }}" class="prog-edit-form" style="display:none">
+        <div class="form-divider"></div>
+        {{ prog_form(prog, zones, failsafe_max) }}
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="card">
+    <p class="schedule-empty">Nincs még program. Hozzon létre egyet az &ldquo;+ Új program&rdquo; gombbal.</p>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+  function showNewProgramForm() {
+    document.getElementById('new-prog-form').style.display = '';
+  }
+  function hideNewProgramForm() {
+    document.getElementById('new-prog-form').style.display = 'none';
+  }
+  function toggleProgramForm(pid) {
+    var el = document.getElementById('prog-form-' + pid);
+    el.style.display = el.style.display === 'none' ? '' : 'none';
+  }
+  function hideProgramForm(pid) {
+    document.getElementById('prog-form-' + pid).style.display = 'none';
+  }
+  function toggleDayChip(chip) {
+    var cb = chip.querySelector('input[type=checkbox]');
+    cb.checked = !cb.checked;
+    chip.classList.toggle('day-chip-on', cb.checked);
+  }
+  function updateScheduleFields(sel) {
+    var form = sel.closest('form');
+    var t = sel.value;
+    form.querySelector('.field-days').style.display = t === 'weekly' ? '' : 'none';
+    form.querySelector('.field-date').style.display = t === 'once'   ? '' : 'none';
+  }
+</script>

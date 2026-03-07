@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section>
+  <p class="section-title">{{ 'Program szerkesztése' if program else 'Új program' }}</p>
+  <div class="card">
+    <form method="post" action="{{ url_for('program_save') }}">
+      {% if program %}
+      <input type="hidden" name="id" value="{{ program.id }}">
+      {% endif %}
+
+      <div class="form-group">
+        <label class="form-label">Név</label>
+        <input type="text" name="name" class="form-input" required
+               value="{{ program.name if program else '' }}">
+      </div>
+
+      <div class="form-row-checks">
+        <label class="check-label">
+          <input type="checkbox" name="active" value="1"
+                 {{ 'checked' if not program or program.active }}>
+          Aktív
+        </label>
+        <label class="check-label">
+          <input type="checkbox" name="rain_skip" value="1"
+                 {{ 'checked' if program and program.rain_skip }}>
+          &#127783; Esőre kihagyás
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Ütemezés típusa</label>
+        <select name="schedule_type" class="form-input" id="schedule-type">
+          <option value="daily"  {{ 'selected' if not program or program.schedule.type == 'daily' }}>Naponta</option>
+          <option value="weekly" {{ 'selected' if program and program.schedule.type == 'weekly' }}>Heti</option>
+          <option value="once"   {{ 'selected' if program and program.schedule.type == 'once' }}>Egyszer</option>
+        </select>
+      </div>
+
+      <div id="field-time" class="form-group">
+        <label class="form-label">Időpont</label>
+        <input type="time" name="schedule_time" class="form-input"
+               value="{{ program.schedule.time if program else '06:00' }}">
+      </div>
+
+      <div id="field-days" class="form-group" style="display:none">
+        <label class="form-label">Napok</label>
+        <div class="days-row">
+          {% set sel_days = program.schedule.days if program and program.schedule.type == 'weekly' else [] %}
+          {% for val, label in [('mon','H'),('tue','K'),('wed','Sze'),('thu','Cs'),('fri','P'),('sat','Szo'),('sun','V')] %}
+          <div class="day-chip {{ 'day-chip-on' if val in sel_days }}" data-val="{{ val }}">
+            <input type="checkbox" name="schedule_days" value="{{ val }}"
+                   {{ 'checked' if val in sel_days }} style="display:none">
+            {{ label }}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div id="field-date" class="form-group" style="display:none">
+        <label class="form-label">Dátum</label>
+        <input type="date" name="schedule_date" class="form-input"
+               value="{{ program.schedule.date if program and program.schedule.type == 'once' else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Zónák (perc, 0 = kihagyás)</label>
+        <div class="adhoc-rows">
+          {% for z in zones %}
+          {% set step = (program.steps | selectattr('zone_id', 'equalto', z.id) | list | first) if program else none %}
+          <div class="adhoc-row">
+            <span class="zone-label">{{ z.name }}</span>
+            <input type="number" name="zone_{{ z.id }}_minutes"
+                   min="0" max="{{ failsafe_max // 60 }}"
+                   value="{{ step.minutes if step else 0 }}"
+                   aria-label="{{ z.name }} percben">
+            <span class="unit">perc</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-run" style="width:auto; padding:.65rem 1.5rem;">Mentés</button>
+        <a href="{{ url_for('programs_page') }}" class="btn-cancel">Mégse</a>
+      </div>
+    </form>
+  </div>
+</section>
+
+<script>
+  var _schedType = document.getElementById('schedule-type');
+  function showScheduleFields() {
+    var t = _schedType.value;
+    document.getElementById('field-days').style.display = t === 'weekly' ? '' : 'none';
+    document.getElementById('field-date').style.display = t === 'once'   ? '' : 'none';
+  }
+  _schedType.addEventListener('change', showScheduleFields);
+  showScheduleFields();
+
+  document.querySelectorAll('.day-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      var cb = chip.querySelector('input[type=checkbox]');
+      cb.checked = !cb.checked;
+      chip.classList.toggle('day-chip-on', cb.checked);
+    });
+  });
+</script>
+
+{% endblock %}

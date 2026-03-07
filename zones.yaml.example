@@ -31,3 +31,21 @@ failsafe:
 timezone: "Europe/Budapest"
 
 dry_run: false
+
+programs:
+  - id: 1
+    name: "Reggeli öntözés"
+    active: true
+    rain_skip: true
+    schedule:
+      type: "daily"       # "daily", "weekly", "once"
+      time: "06:00"
+      days: []            # for weekly: [mon, tue, wed, thu, fri, sat, sun]
+      date: ""            # for once: "2026-04-01"
+    steps:
+      - zone_id: 1
+        minutes: 10
+      - zone_id: 2
+        minutes: 8
+      - zone_id: 3
+        minutes: 12

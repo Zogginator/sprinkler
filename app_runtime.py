@@ -20,6 +20,7 @@ current_program: dict | None = None
 _program_stop_event: Event | None = None
 
 last_adhoc_steps: dict[int, int] = {}  # zone_id -> minutes
+programs: dict[int, dict] = {}         # program_id -> program_dict
 
 
 def start_run(zone_id: int, duration_seconds: int) -> None:

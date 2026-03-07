@@ -40,19 +40,25 @@
 
 {# ── Scheduled programs (read-only) ── #}
 <section>
-  <p class="section-title">Ütemezett programok</p>
+  <div class="section-header">
+    <p class="section-title">Ütemezett programok</p>
+    <a href="{{ url_for('programs_page') }}" class="section-link">Programok kezelése &rarr;</a>
+  </div>
   <div class="card">
-    {% if scheduled_jobs %}
+    {% if active_programs %}
     <div class="schedule-list">
-      {% for job in scheduled_jobs %}
+      {% for prog in active_programs %}
       <div class="schedule-item">
-        <span class="job-name">{{ job.name }}</span>
-        <span class="job-next">Következő: {{ job.next_run }}</span>
+        <div>
+          <span class="job-name">{{ prog.name }}</span>
+          <span class="job-schedule">{{ prog.schedule_summary }}</span>
+        </div>
+        <span class="job-next">Következő: {{ prog.next_run }}</span>
       </div>
       {% endfor %}
     </div>
     {% else %}
-    <p class="schedule-empty">Nincs ütemezett program.</p>
+    <p class="schedule-empty">Nincs aktív ütemezett program. <a href="{{ url_for('programs_page') }}">Létrehozás &rarr;</a></p>
     {% endif %}
   </div>
 </section>

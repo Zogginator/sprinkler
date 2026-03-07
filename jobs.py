@@ -3,6 +3,23 @@ import app_runtime
 from classes.Program import Program
 
 
+def start_scheduled_program(program_id: int, rain_skip: bool = False):
+    """Called by APScheduler for configured programs. Respects rain-skip."""
+    logger = app_runtime.logger
+    prog = app_runtime.programs.get(program_id)
+    if prog is None:
+        logger.error("start_scheduled_program: program %s not found", program_id)
+        return
+    if rain_skip and app_runtime.rain_sensor and app_runtime.rain_sensor.get_rain_status():
+        logger.info("Rain detected — skipping program '%s'", prog["name"])
+        return
+    steps = [(s["zone_id"], s["minutes"] * 60) for s in prog.get("steps", []) if s["minutes"] > 0]
+    if not steps:
+        logger.warning("Program '%s' has no runnable steps, skipping", prog["name"])
+        return
+    start_program_by_id(program_id=program_id, steps=steps, name=prog["name"])
+
+
 def start_program_by_id(program_id: int | str,
                         steps: list[tuple[int, int]] | None = None,
                         name: str | None = None):

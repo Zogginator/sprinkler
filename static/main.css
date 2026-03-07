@@ -289,3 +289,162 @@ main {
 .job-next { color: #6b7280; font-size: .8rem; white-space: nowrap; }
 .schedule-empty { color: #9ca3af; font-size: .9rem; font-style: italic; }
 .loading-text { color: #9ca3af; font-size: .85rem; }
+
+/* ── Page nav ── */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.page-nav { display: flex; gap: 1rem; }
+.nav-link {
+  font-size: .875rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-decoration: none;
+}
+.nav-link:hover { color: #1a1a1a; }
+
+/* ── Section header (title + action link on same row) ── */
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: .75rem;
+}
+.section-header .section-title { margin-bottom: 0; }
+.section-link {
+  font-size: .8rem;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+}
+.section-link:hover { text-decoration: underline; }
+
+/* ── Dashboard schedule ── */
+.job-schedule {
+  display: block;
+  font-size: .78rem;
+  color: #9ca3af;
+  margin-top: .1rem;
+}
+
+/* ── Programs list ── */
+.prog-list { display: flex; flex-direction: column; gap: 1rem; }
+
+.prog-card {}
+
+.prog-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.prog-card-title {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.prog-name { font-size: 1rem; font-weight: 700; }
+.badge-rain { font-size: 1rem; }
+.badge-status {
+  font-size: .7rem;
+  font-weight: 700;
+  padding: .15rem .5rem;
+  border-radius: 5px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.badge-active   { background: #dcfce7; color: #15803d; }
+.badge-inactive { background: #f3f4f6; color: #9ca3af; }
+
+.prog-card-actions {
+  display: flex;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.btn-prog {
+  border: none;
+  border-radius: 8px;
+  font-size: .8rem;
+  font-weight: 700;
+  padding: .4rem .85rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-prog-run    { background: #dcfce7; color: #15803d; }
+.btn-prog-run:hover { background: #bbf7d0; }
+.btn-prog-edit   { background: #e0f2fe; color: #0369a1; }
+.btn-prog-edit:hover { background: #bae6fd; }
+.btn-prog-delete { background: #fee2e2; color: #dc2626; }
+.btn-prog-delete:hover { background: #fecaca; }
+
+.prog-meta {
+  margin-top: .6rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.prog-schedule { font-size: .85rem; color: #6b7280; }
+.prog-next     { font-size: .8rem;  color: #9ca3af; }
+.prog-steps    { margin-top: .35rem; font-size: .85rem; color: #374151; }
+
+/* ── New program button ── */
+.btn-new {
+  background: #2563eb;
+  color: #fff;
+  border-radius: 9px;
+  padding: .5rem 1.1rem;
+  font-size: .875rem;
+  font-weight: 700;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-new:hover { background: #1d4ed8; }
+
+/* ── Program form ── */
+.form-group { display: flex; flex-direction: column; gap: .4rem; margin-bottom: 1rem; }
+.form-label { font-size: .8rem; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .04em; }
+.form-input {
+  padding: .55rem .75rem;
+  border: 1.5px solid #d1d5db;
+  border-radius: 9px;
+  font-size: .95rem;
+  background: #fff;
+  width: 100%;
+}
+.form-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+
+.form-row-checks { display: flex; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.check-label { display: flex; align-items: center; gap: .4rem; font-size: .9rem; font-weight: 500; cursor: pointer; }
+
+.days-row { display: flex; gap: .4rem; flex-wrap: wrap; }
+.day-chip {
+  padding: .4rem .7rem;
+  border-radius: 7px;
+  border: 1.5px solid #d1d5db;
+  font-size: .85rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  color: #6b7280;
+  background: #fff;
+  transition: border-color .1s, background .1s, color .1s;
+}
+.day-chip-on, .day-chip:hover { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+
+.form-actions { display: flex; align-items: center; gap: 1rem; margin-top: .5rem; }
+.btn-cancel {
+  font-size: .9rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-decoration: none;
+}
+.btn-cancel:hover { color: #1a1a1a; }

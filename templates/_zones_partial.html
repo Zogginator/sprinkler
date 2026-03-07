@@ -41,7 +41,7 @@
         <span class="status-label {{ 'on' if is_on else 'off' }}">{{ 'BE' if is_on else 'KI' }}</span>
       </div>
 
-      {% if is_on and rem > 0 %}<div class="remaining">{{ rem // 60 }}:{{ '%02d' % (rem % 60) }}</div>{% endif %}
+      {% if is_on and rem > 0 %}<div class="remaining" data-remaining="{{ rem }}">{{ rem // 60 }}:{{ '%02d' % (rem % 60) }}</div>{% endif %}
 
       <div class="zone-actions">
         <form method="post" action="/zones/{{ z.id }}/on"

@@ -18,7 +18,8 @@
     {% block content %}{% endblock %}
   </main>
   <script>
-    var _savedInputs = {};  // zone-id → saved minutes value
+    var _savedInputs = {};      // zone-id → saved minutes value
+    window._cdTimers = {};      // zone-id → setInterval handle
 
     // Preserve user-typed duration values across HTMX polls
     document.addEventListener('htmx:beforeSwap', function(e) {
@@ -32,12 +33,44 @@
 
     document.addEventListener('htmx:afterSwap', function(e) {
       if (e.detail.target && e.detail.target.id === 'zones') {
+        // Restore saved duration inputs
         document.querySelectorAll('[data-zone-id]').forEach(function(card) {
           var inp = card.querySelector('input[name="minutes"]');
           if (inp && _savedInputs[card.dataset.zoneId] !== undefined) {
             inp.value = _savedInputs[card.dataset.zoneId];
           }
         });
+
+        // Clear all existing countdown intervals
+        Object.values(window._cdTimers).forEach(clearInterval);
+        window._cdTimers = {};
+
+        // Start a 1-second client-side countdown for each active zone
+        document.querySelectorAll('[data-zone-id]').forEach(function(card) {
+          var zid = card.dataset.zoneId;
+          var el = card.querySelector('.remaining[data-remaining]');
+          if (!el) return;
+          var secs = parseInt(el.dataset.remaining, 10);
+          if (secs <= 0) return;
+          window._cdTimers[zid] = setInterval(function() {
+            secs -= 1;
+            if (secs <= 0) {
+              clearInterval(window._cdTimers[zid]);
+              delete window._cdTimers[zid];
+              el.textContent = '0:00';
+              return;
+            }
+            el.textContent = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+          }, 1000);
+        });
+      }
+    });
+
+    // After a zone on/off or adhoc request, force an immediate poll refresh
+    document.body.addEventListener('htmx:afterRequest', function(e) {
+      if (e.detail.pathInfo?.requestPath?.match(/\/zones\/\d+\/(on|off)/) ||
+          e.detail.pathInfo?.requestPath === '/adhoc') {
+        htmx.trigger(document.getElementById('zones'), 'refresh');
       }
     });
   </script>

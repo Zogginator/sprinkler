@@ -26,7 +26,7 @@
         {% for z in zones %}
         <div class="adhoc-row">
           <span class="zone-label">{{ z.name }}</span>
-          <input type="number" name="zone_{{ z.id }}_minutes" min="0" max="60" value="0" aria-label="{{ z.name }} futási idő percben">
+          <input type="number" name="zone_{{ z.id }}_minutes" min="0" max="60" value="{{ last_adhoc_steps.get(z.id, 5) }}" aria-label="{{ z.name }} futási idő percben">
           <span class="unit">perc</span>
         </div>
         {% endfor %}

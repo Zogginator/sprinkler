@@ -31,13 +31,13 @@ class Program:
             sp.turn_on(duration)
             if on_step_start:
                 on_step_start()
-            # Sleep for duration, checking stop_event every second for abort support
-            elapsed = 0
-            while elapsed < duration:
+            deadline = time.time() + duration
+            while time.time() < deadline:
                 if stop_event and stop_event.is_set():
-                    break
-                time.sleep(1)
-                elapsed += 1
+                    return  # program aborted
+                if sp.state == 0 and app_runtime.remaining(sp.id) == 0:
+                    break  # zone stopped externally — advance to next step
+                time.sleep(0.5)
             sp.turn_off()
             if delay_seconds and not (stop_event and stop_event.is_set()):
                 time.sleep(delay_seconds)

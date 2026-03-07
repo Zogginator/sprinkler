@@ -65,6 +65,7 @@ def dashboard():
         dry_run=app_runtime.DRY_RUN,
         scheduled_jobs=scheduled_jobs,
         any_zone_on=any_zone_on,
+        last_adhoc_steps=app_runtime.last_adhoc_steps,
     )
 
 
@@ -129,6 +130,7 @@ def adhoc_run():
     for z in ZONES:
         key = f"zone_{z['id']}_minutes"
         minutes = int(request.form.get(key) or 0)
+        app_runtime.last_adhoc_steps[z["id"]] = minutes
         if minutes > 0:
             steps.append((z["id"], min(minutes * 60, FAILSAFE_MAX)))
     if steps:

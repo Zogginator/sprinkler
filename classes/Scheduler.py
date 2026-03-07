@@ -2,8 +2,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo    
-TZ = ZoneInfo("Europe/Budapest")   # YAML-ból kéne átvennie
+from zoneinfo import ZoneInfo
 
 from classes.Program import program_constructor_from_db
 
@@ -31,13 +30,12 @@ class DayOption:
 
 
 class Scheduler:
-    def __init__(self, logger=None):
-        
+    def __init__(self, timezone: str = "Europe/Budapest", logger=None):
         self.logger = logger or logging.getLogger(__name__)
-
+        self.tz = ZoneInfo(timezone)
 
         job_defaults = {'coalesce': False, 'max_instances': 10}
-        self.scheduler = BackgroundScheduler(job_defaults=job_defaults, timezone=TZ)  # Create background scheduler
+        self.scheduler = BackgroundScheduler(job_defaults=job_defaults, timezone=self.tz)
 
     def _extract_program_id(self, day_opt) -> str:
 
@@ -95,11 +93,11 @@ class Scheduler:
                           name: str = "Adhoc Program") -> str:
         """Run once, almost immediately."""
         from jobs import start_program_by_id
-        jid = f"adhoc:{program_id}:{int(datetime.now(TZ).timestamp())}"
+        jid = f"adhoc:{program_id}:{int(datetime.now(self.tz).timestamp())}"
         self.scheduler.add_job(
             start_program_by_id,
             'date',
-            run_date=datetime.now(TZ) + timedelta(seconds=1),
+            run_date=datetime.now(self.tz) + timedelta(seconds=1),
             id=jid,
             name=name,
             kwargs={'program_id': program_id, 'steps': list(steps), 'name': name},
@@ -111,14 +109,11 @@ class Scheduler:
     def trigger_now(self, dayOption: "DayOption") -> None:
         """Az adott dayOption-hoz tartozó job azonnali futtatása (következő időpont előrehozása)."""
         jid = self._job_id_for(dayOption)
-        self.scheduler.modify_job(jid, next_run_time=datetime.now(TZ))
+        self.scheduler.modify_job(jid, next_run_time=datetime.now(self.tz))
 
     def run_program_by_id(self, program_id):  ## ez kell?
         p = program_constructor_from_db(program_id)
-        try:
-            p.run_sequentially()
-        finally:
-            p.cleanup()
+        p.run_sequentially()
 
 
 

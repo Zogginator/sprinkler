@@ -7,6 +7,7 @@ from mqtt_client import OBKMqtt
 from classes.Sprinkler import Sprinkler, RainSensor
 
 mqttc: OBKMqtt | None = None
+rain_sensor: RainSensor | None = None
 logger = logging.getLogger("sprinkler")
 SPRINKLER_BY_ID: dict[int, Sprinkler] = {}
 DRY_RUN: bool = False
@@ -149,4 +150,5 @@ def init_runtime(conf):
 
     threading.Thread(target=_failsafe_loop, daemon=True).start()
 
-    rainsensor = RainSensor(mqttc=mqttc, channel=conf["rainsensor"]["channel"])
+    global rain_sensor
+    rain_sensor = RainSensor(mqttc=mqttc, channel=conf["rainsensor"]["channel"])

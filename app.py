@@ -7,8 +7,7 @@ import yaml
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
 import app_runtime
-from classes.Program import Program, program_constructor
-from classes.Scheduler import DayOption, Scheduler, StartTime
+from classes.Scheduler import Scheduler
 
 # ----------------------------
 # Config
@@ -28,7 +27,7 @@ CONF["mqtt"]["topics"] = {
 ZONES = CONF["zones"]  # [{'id': 1, 'name': 'Előkert', 'channel': 31}, {'id': 2, 'name': 'Oldalkert', 'channel': 32}, {'id': 3, 'name': 'Hátsókert', 'channel': 33}]
 ZONES_BY_ID = {z["id"]: z for z in ZONES}  # {1: {'id': 1, 'name': 'Előkert', 'channel': 31}, 2: {'id': 2, 'name': 'Oldalkert', 'channel': 32}, 3: {'id': 3, 'name': 'Hátsókert', 'channel': 33}}
 FAILSAFE_MAX = int(CONF.get("failsafe", {}).get("max_seconds", 1800)) # 600
-POLL_SEC = int(CONF.get("poll_seconds", 3)) #3
+POLL_SEC = int(CONF.get("failsafe", {}).get("poll_seconds", 3))
 SET_TMPL = CONF["mqtt"]["topics"]["set"]  # "sprinkler/{channel}/set"
 STATE_SUB = CONF["mqtt"]["topics"]["state"] # "sprinkler/+/get"
 TIMEZONE = CONF ["timezone"]  #"Europe/Budapest"
@@ -38,11 +37,7 @@ logging.basicConfig(level=logging.DEBUG)
 app_runtime.logger = logging.getLogger(__name__)
                 
 
-program1 = program_constructor('1', 'Temporary Program', [(3, 10), (2,10)])     # <classes.Program.Program object>
-test2 = DayOption("Everyday Evening", StartTime(21, 14), program_id='test', steps=[(3,600), (2, 600), (1,600)], day=None)    # <classes.Scheduler.DayOption object>
-
-
-sched = Scheduler(logger=app_runtime.logger)            #<classes.Scheduler.Scheduler object>
+sched = Scheduler(timezone=TIMEZONE, logger=app_runtime.logger)            #<classes.Scheduler.Scheduler object>
 
 
 # ----------------------------

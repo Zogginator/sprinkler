@@ -7,7 +7,7 @@ def program_constructor(id, name, runtimes):
 
 
 def program_constructor_from_db(program_id):
-    return Program('1', 'test', [(3, 10), (2, 10)])
+    raise NotImplementedError("program_constructor_from_db: DB persistence not yet implemented")
 
 
 class Program:

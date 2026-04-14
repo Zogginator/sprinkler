@@ -57,8 +57,14 @@ class OBKMqtt:
         self._thread.start()
 
     def _loop(self):
-        self.client.connect(self.host, self.port, keepalive=30)
-        self.client.loop_forever()
+        while True:
+            try:
+                self.logger.info("MQTT connecting to %s:%s", self.host, self.port)
+                self.client.connect(self.host, self.port, keepalive=30)
+                self.client.loop_forever()
+            except Exception as e:
+                self.logger.warning("MQTT connection failed: %s — retry in 10s", e)
+                time.sleep(10)
 
     def _on_connect(self, client, userdata, flags, reason_code, properties=None):
         client.subscribe(self.state_sub, qos=self.qos)
